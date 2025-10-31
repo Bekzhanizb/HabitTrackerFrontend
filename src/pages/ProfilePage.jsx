@@ -1,71 +1,127 @@
-import React, { useState } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { Container, Row, Col, Form, Button, Image, Spinner } from "react-bootstrap";
+import { useDispatch, useSelector } from "react-redux";
 import { updateUser } from "../slices/userSlice";
 
 const ProfilePage = () => {
+  const { user } = useSelector((state) => state.user);
   const dispatch = useDispatch();
-  const user = useSelector((state) => state.user.user);
 
   const [username, setUsername] = useState(user?.username || "");
-  const [city, setCity] = useState(user?.city || "");
-  const [avatar, setAvatar] = useState(user?.picture || null);
-  const [preview, setPreview] = useState(user?.picture || null);
+  const [cityId, setCityId] = useState(user?.city_id || "");
+  const [cities, setCities] = useState([]);
+  const [picture, setPicture] = useState(null);
+  const [preview, setPreview] = useState(user?.picture || "");
+  const [loading, setLoading] = useState(false);
 
-  const handleImageChange = (e) => {
+  useEffect(() => {
+    axios.get("http://localhost:8080/api/cities")
+      .then(res => setCities(res.data))
+      .catch(err => console.error("Ошибка при загрузке городов:", err));
+  }, []);
+
+  const handlePictureChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setAvatar(file);
-      setPreview(imageUrl);
+    setPicture(file);
+    if (file) setPreview(URL.createObjectURL(file));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const formData = new FormData();
+    formData.append("username", username);
+    formData.append("city_id", cityId);
+    if (picture) formData.append("picture", picture);
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post("http://localhost:8080/update-profile", formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      dispatch(updateUser(res.data.user));
+      alert("Профиль успешно обновлен!");
+    } catch (err) {
+      console.error("Ошибка при обновлении профиля:", err);
+      alert(err.response?.data?.error || "Ошибка при обновлении профиля");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSave = () => {
-    const updatedUser = {
-      ...user,
-      username,
-      city,
-      picture: preview,
-    };
-    dispatch(updateUser(updatedUser));
-    localStorage.setItem("user", JSON.stringify(updatedUser));
-    alert("Профиль обновлён!");
-  };
-
   if (!user) {
-    return <p>Вы не вошли в систему</p>;
+    return (
+      <Container className="mt-5 text-center">
+        <h4>Пожалуйста, войдите в систему, чтобы просмотреть профиль</h4>
+      </Container>
+    );
   }
 
   return (
-    <div style={{ maxWidth: "400px", margin: "auto" }}>
-      <h2>Профиль</h2>
+    <Container className="mt-5">
+      <Row className="justify-content-center">
+        <Col md={6}>
+          <div className="text-center mb-4">
+            
+            <Image
+  src={
+    preview
+      ? preview.startsWith("http")
+        ? preview
+        : `http://localhost:8080/${preview.startsWith("/") ? preview.slice(1) : preview}`
+      : "https://via.placeholder.com/150" // fallback, если фото нет
+  }
+  roundedCircle
+  width={150}
+  height={150}
+  alt="User Avatar"
+  className="shadow-sm"
+/>
 
-      <div style={{ textAlign: "center", marginBottom: "1rem" }}>
-        <img
-          src={preview || "/default-avatar.png"}
-          alt="avatar"
-          style={{ width: "120px", height: "120px", borderRadius: "50%", objectFit: "cover" }}
-        />
-        <input type="file" accept="image/*" onChange={handleImageChange} />
-      </div>
+            <h3 className="mt-3">{user.username}</h3>
+            <p className="text-muted">{user.role}</p>
+          </div>
 
-      <div>
-        <label>Имя пользователя:</label>
-        <input value={username} onChange={(e) => setUsername(e.target.value)} />
-      </div>
+          <Form onSubmit={handleSubmit}>
+            <Form.Group className="mb-3">
+              <Form.Label>Имя пользователя</Form.Label>
+              <Form.Control
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </Form.Group>
 
-      <div>
-        <label>Город:</label>
-        <input value={city} onChange={(e) => setCity(e.target.value)} />
-      </div>
+            <Form.Group className="mb-3">
+              <Form.Label>Город</Form.Label>
+              <Form.Select value={cityId} onChange={(e) => setCityId(e.target.value)}>
+                <option value="">Выберите город...</option>
+                {cities.map(city => (
+                  <option key={city.id} value={city.id}>{city.name}</option>
+                ))}
+              </Form.Select>
+            </Form.Group>
 
-      <div>
-        <label>Роль:</label>
-        <p>{user.role}</p>
-      </div>
+            <Form.Group className="mb-3">
+              <Form.Label>Фото профиля</Form.Label>
+              <Form.Control type="file" accept="image/*" onChange={handlePictureChange} />
+            </Form.Group>
 
-      <button onClick={handleSave}>Сохранить</button>
-    </div>
+            <div className="d-grid">
+              <Button variant="primary" type="submit" disabled={loading}>
+                {loading ? <Spinner animation="border" size="sm" /> : "Сохранить изменения"}
+              </Button>
+            </div>
+          </Form>
+        </Col>
+      </Row>
+    </Container>
   );
 };
 

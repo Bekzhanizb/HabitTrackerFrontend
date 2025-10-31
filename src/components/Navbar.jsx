@@ -52,7 +52,7 @@ const Navbar = () => {
                     <img
                       src={
                         user?.picture
-                          ? user.picture
+                          ? `http://localhost:8080${user.picture}`
                           : "/default-avatar.png"
                       }
                       alt="Profile"
