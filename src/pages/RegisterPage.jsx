@@ -1,130 +1,263 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { Form, Button, Container, Row, Col, Alert } from "react-bootstrap";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Form, Button, Container, Row, Col, Alert, Spinner } from "react-bootstrap";
+import { useNavigate, Link } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { login } from "../slices/userSlice";
+import api from "../api/axios";
 
-const RegisterPage = () => {
-  const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-    city_id: "",
-    avatar: null,
-  });
-  const [cities, setCities] = useState([]);
-  const [error, setError] = useState("");
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
+const MAX_AVATAR_BYTES = 3 * 1024 * 1024; // 3MB
+const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"];
 
-  useEffect(() => {
-    axios
-      .get("http://localhost:8080/api/cities")
-      .then((res) => setCities(res.data.cities || res.data))
-      .catch((err) => console.error("Ошибка при загрузке городов:", err));
-  }, []);
+export default function RegisterPage() {
+    const [formData, setFormData] = useState({
+        username: "",
+        password: "",
+        city_id: "",
+        avatar: null,
+    });
 
-  const handleChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === "avatar") {
-      setFormData({ ...formData, avatar: files[0] });
-    } else {
-      setFormData({ ...formData, [name]: value });
-    }
-  };
+    const [cities, setCities] = useState([]);
+    const [citiesLoading, setCitiesLoading] = useState(true);
+    const [citiesError, setCitiesError] = useState("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
+    const [error, setError] = useState("");
+    const [sending, setSending] = useState(false);
+    const [showPass, setShowPass] = useState(false);
 
-    try {
-      const data = new FormData();
-      data.append("username", formData.username);
-      data.append("password", formData.password);
-      data.append("city_id", formData.city_id);
-      if (formData.avatar) data.append("avatar", formData.avatar);
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
 
-      const res = await axios.post("http://localhost:8080/register", data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+    useEffect(() => {
+        const controller = new AbortController();
+        (async () => {
+            setCitiesLoading(true);
+            setCitiesError("");
+            try {
+                const res = await api.get("/api/cities", { signal: controller.signal });
+                const list = Array.isArray(res.data) ? res.data : (res.data?.cities || []);
+                setCities(list);
+            } catch (err) {
+                if (err?.code !== "ERR_CANCELED") {
+                    const status = err.response?.status;
+                    const payload = err.response?.data;
+                    setCitiesError(
+                        `Не удалось загрузить список городов` +
+                        (status ? ` (HTTP ${status})` : "") +
+                        (payload ? `: ${typeof payload === "string" ? payload : JSON.stringify(payload)}` : "")
+                    );
+                }
+            } finally {
+                setCitiesLoading(false);
+            }
+        })();
+        return () => controller.abort();
+    }, []);
 
-      // 🔹 Обновляем Redux и localStorage
-      dispatch(login({ user: res.data.user, token: res.data.token }));
+    const handleChange = (e) => {
+        const { name, value, files } = e.target;
+        if (name === "avatar") {
+            const file = files?.[0];
+            if (file) {
+                if (!ALLOWED_MIME.includes(file.type)) {
+                    setError("Разрешены только JPG, PNG или WEBP");
+                    return;
+                }
+                if (file.size > MAX_AVATAR_BYTES) {
+                    setError("Файл слишком большой (макс. 3 МБ)");
+                    return;
+                }
+            }
+            setError("");
+            setFormData((s) => ({ ...s, avatar: file || null }));
+        } else {
+            setFormData((s) => ({ ...s, [name]: value }));
+        }
+    };
 
-      // 🔹 Переходим на профиль без alert
-      navigate("/profile");
-    } catch (err) {
-      console.error("Ошибка при регистрации:", err);
-      setError(err.response?.data?.error || "Ошибка при регистрации");
-    }
-  };
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError("");
 
-  return (
-    <Container className="mt-5">
-      <Row className="justify-content-center">
-        <Col md={6}>
-          <h3 className="text-center mb-4">Регистрация</h3>
+        if (!formData.username.trim()) {
+            setError("Введите имя пользователя");
+            return;
+        }
+        if ((formData.password || "").length < 6) {
+            setError("Пароль должен быть не менее 6 символов");
+            return;
+        }
+        if (!formData.city_id) {
+            setError("Выберите город");
+            return;
+        }
 
-          {error && <Alert variant="danger" className="text-center">{error}</Alert>}
+        setSending(true);
+        try {
+            const data = new FormData();
+            data.append("username", formData.username.trim());
+            data.append("password", formData.password);
+            data.append("city_id", String(Number(formData.city_id)));
 
-          <Form onSubmit={handleSubmit}>
-            <Form.Group className="mb-3">
-              <Form.Label>Имя пользователя</Form.Label>
-              <Form.Control
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                required
-              />
-            </Form.Group>
+            // ⚠️ ВАЖНО: временно НЕ отправляем avatar, чтобы избежать 500 на Windows из-за абсолютного пути "/uploads/..."
+            // if (formData.avatar) data.append("avatar", formData.avatar);
 
-            <Form.Group className="mb-3">
-              <Form.Label>Пароль</Form.Label>
-              <Form.Control
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-              />
-            </Form.Group>
+            const res = await api.post("/register", data);
 
-            <Form.Group className="mb-3">
-              <Form.Label>Город</Form.Label>
-              <Form.Select
-                name="city_id"
-                value={formData.city_id}
-                onChange={handleChange}
-                required
-              >
-                <option value="">Выберите город...</option>
-                {cities.map((city) => (
-                  <option key={city.id} value={city.id}>
-                    {city.name}
-                  </option>
-                ))}
-              </Form.Select>
-            </Form.Group>
+            const token =
+                res.data?.token ||
+                res.data?.access_token ||
+                res.data?.jwt ||
+                res.data?.data?.token;
 
-            <Form.Group className="mb-3">
-              <Form.Label>Аватар</Form.Label>
-              <Form.Control
-                type="file"
-                name="avatar"
-                accept="image/*"
-                onChange={handleChange}
-              />
-            </Form.Group>
+            const rawUser =
+                res.data?.user ||
+                res.data?.data?.user || {
+                    id: res.data?.id ?? res.data?.user_id,
+                    username: res.data?.username ?? formData.username,
+                    role: res.data?.role ?? "user",
+                    email: res.data?.email,
+                    picture: res.data?.picture ?? res.data?.avatar ?? null,
+                    city_id: Number(formData.city_id),
+                };
 
-            <Button type="submit" variant="primary" className="w-100">
-              Зарегистрироваться
-            </Button>
-          </Form>
-        </Col>
-      </Row>
-    </Container>
-  );
-};
+            const user = { ...rawUser, picture: rawUser.picture ?? rawUser.avatar ?? null };
 
-export default RegisterPage;
+            if (!token || !user) {
+                throw new Error("Некорректный ответ сервера: отсутствует токен или пользователь");
+            }
+
+            dispatch(login({ user, token }));
+            try {
+                localStorage.setItem("token", token);
+                localStorage.setItem("user", JSON.stringify(user));
+            } catch {}
+
+            // Фото загрузим позже со страницы профиля через /update-profile
+            navigate("/profile", { replace: true });
+        } catch (err) {
+            // Печатаем максимум деталей, чтобы понять точную причину 500
+            console.error("Ошибка при регистрации:", err);
+            const status = err.response?.status;
+            const payload = err.response?.data;
+            setError(
+                (payload?.error || payload?.message || err.message || "Ошибка при регистрации") +
+                (status ? ` (HTTP ${status})` : "")
+            );
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <Container className="mt-5">
+            <Row className="justify-content-center">
+                <Col md={6}>
+                    <h3 className="text-center mb-4">Регистрация</h3>
+
+                    {(error || citiesError) && (
+                        <Alert variant="danger" className="text-center">
+                            {error || citiesError}
+                        </Alert>
+                    )}
+
+                    <Form onSubmit={handleSubmit}>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Имя пользователя</Form.Label>
+                            <Form.Control
+                                type="text"
+                                name="username"
+                                placeholder="Введите имя пользователя"
+                                value={formData.username}
+                                onChange={handleChange}
+                                maxLength={60}
+                                required
+                            />
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Пароль</Form.Label>
+                            <div className="d-flex gap-2">
+                                <Form.Control
+                                    type={showPass ? "text" : "password"}
+                                    name="password"
+                                    placeholder="Введите пароль"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    autoComplete="new-password"
+                                    required
+                                />
+                                <Button
+                                    variant="outline-secondary"
+                                    type="button"
+                                    onClick={() => setShowPass((s) => !s)}
+                                >
+                                    {showPass ? "Скрыть" : "Показать"}
+                                </Button>
+                            </div>
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Город</Form.Label>
+                            <Form.Select
+                                name="city_id"
+                                value={formData.city_id}
+                                onChange={handleChange}
+                                required
+                                disabled={citiesLoading}
+                            >
+                                <option value="">
+                                    {citiesLoading ? "Загрузка..." : "Выберите город..."}
+                                </option>
+                                {cities.map((city) => (
+                                    <option key={city.id} value={city.id}>
+                                        {city.name}
+                                    </option>
+                                ))}
+                            </Form.Select>
+                            {citiesLoading && (
+                                <div className="mt-2">
+                                    <Spinner size="sm" animation="border" /> Загрузка городов...
+                                </div>
+                            )}
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Аватар (JPG/PNG/WEBP, до 3 МБ)</Form.Label>
+                            <Form.Control
+                                type="file"
+                                name="avatar"
+                                accept="image/jpeg,image/png,image/webp"
+                                onChange={handleChange}
+                            />
+                            <Form.Text muted>
+                                Сейчас можно пропустить. Фото добавим в профиле.
+                            </Form.Text>
+                        </Form.Group>
+
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            className="w-100"
+                            disabled={sending || citiesLoading}
+                        >
+                            {sending ? (
+                                <>
+                                    <Spinner size="sm" animation="border" className="me-2" />
+                                    Отправка...
+                                </>
+                            ) : (
+                                "Зарегистрироваться"
+                            )}
+                        </Button>
+
+                        <div className="text-center mt-3">
+                            <small>
+                                Уже есть аккаунт? <Link to="/login">Войти</Link>
+                            </small>
+                        </div>
+                    </Form>
+                </Col>
+            </Row>
+        </Container>
+    );
+}
