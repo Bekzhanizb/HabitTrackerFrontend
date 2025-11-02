@@ -17,68 +17,51 @@ const LoginPage = () => {
     const location = useLocation();
 
     const handleLogin = async (e) => {
-        e.preventDefault();
-        setError("");
-        setLoading(true);
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+        const res = await api.post("/login", {
+            username,
+            password,
+        });
+
+        const token = res.data?.token;
+        const user = res.data?.user;
+
+        if (!token || !user) {
+            throw new Error("Некорректный ответ сервера: отсутствует токен или пользователь");
+        }
+
+        dispatch(login({ user, token }));
 
         try {
-            // ВАЖНО: отправляем как x-www-form-urlencoded (совместимо с c.PostForm)
-            const body = new URLSearchParams();
-            body.set("username", username);
-            body.set("password", password);
+            localStorage.setItem("token", token);
+            localStorage.setItem("user", JSON.stringify(user));
+        } catch {}
 
-            const res = await api.post("/login", body, {
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            });
+        const to = location.state?.from?.pathname || "/profile";
+        navigate(to, { replace: true });
+    } catch (err) {
+        console.error("Login error:", err);
+        const message =
+            err.response?.data?.error ||
+            err.response?.data?.message ||
+            err.message ||
+            "Incorrecr name or password";
+        setError(message);
+    } finally {
+        setLoading(false);
+    }
+};
 
-            const token =
-                res.data?.token ||
-                res.data?.access_token ||
-                res.data?.jwt ||
-                res.data?.data?.token;
-
-            const rawUser =
-                res.data?.user ||
-                res.data?.data?.user || {
-                    id: res.data?.id ?? res.data?.user_id,
-                    username: res.data?.username ?? username,
-                    role: res.data?.role ?? "user",
-                    email: res.data?.email,
-                    picture: res.data?.picture ?? res.data?.avatar ?? null,
-                };
-
-            const user = { ...rawUser, picture: rawUser.picture ?? rawUser.avatar ?? null };
-
-            if (!token || !user) {
-                throw new Error("Некорректный ответ сервера: отсутствует токен или пользователь");
-            }
-
-            dispatch(login({ user, token }));
-            try {
-                localStorage.setItem("token", token);
-                localStorage.setItem("user", JSON.stringify(user));
-            } catch {}
-
-            const to = location.state?.from?.pathname || "/profile";
-            navigate(to, { replace: true });
-        } catch (err) {
-            console.error("Login error:", err);
-            const message =
-                err.response?.data?.error ||
-                err.response?.data?.message ||
-                err.message ||
-                "Неверное имя пользователя или пароль";
-            setError(message);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     return (
         <Container className="mt-5">
             <Row className="justify-content-center">
                 <Col md={6}>
-                    <h3 className="text-center mb-4">Вход в систему</h3>
+                    <h3 className="text-center mb-4">Login</h3>
 
                     {error && (
                         <Alert variant="danger" className="text-center">
@@ -88,10 +71,10 @@ const LoginPage = () => {
 
                     <Form onSubmit={handleLogin}>
                         <Form.Group className="mb-3">
-                            <Form.Label>Имя пользователя</Form.Label>
+                            <Form.Label>Username</Form.Label>
                             <Form.Control
                                 type="text"
-                                placeholder="Введите имя пользователя"
+                                placeholder="Enter the username"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 autoComplete="username"
@@ -100,11 +83,11 @@ const LoginPage = () => {
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>Пароль</Form.Label>
+                            <Form.Label>Password</Form.Label>
                             <div className="d-flex gap-2">
                                 <Form.Control
                                     type={showPass ? "text" : "password"}
-                                    placeholder="Введите пароль"
+                                    placeholder="Password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     autoComplete="current-password"
@@ -115,7 +98,7 @@ const LoginPage = () => {
                                     type="button"
                                     onClick={() => setShowPass((s) => !s)}
                                 >
-                                    {showPass ? "Скрыть" : "Показать"}
+                                    {showPass ? "Hide" : "Show"}
                                 </Button>
                             </div>
                         </Form.Group>
@@ -124,16 +107,16 @@ const LoginPage = () => {
                             {loading ? (
                                 <>
                                     <Spinner size="sm" animation="border" className="me-2" />
-                                    Входим...
+                                    Logging...
                                 </>
                             ) : (
-                                "Войти"
+                                "Login"
                             )}
                         </Button>
 
                         <div className="text-center mt-3">
                             <small>
-                                Нет аккаунта? <Link to="/register">Зарегистрируйтесь</Link>
+                                Don't you have an account? <Link to="/register">Register</Link>
                             </small>
                         </div>
                     </Form>

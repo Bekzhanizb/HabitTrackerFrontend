@@ -75,78 +75,79 @@ export default function RegisterPage() {
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError("");
+    e.preventDefault();
+    setError("");
 
-        if (!formData.username.trim()) {
-            setError("Введите имя пользователя");
-            return;
-        }
-        if ((formData.password || "").length < 6) {
-            setError("Пароль должен быть не менее 6 символов");
-            return;
-        }
-        if (!formData.city_id) {
-            setError("Выберите город");
-            return;
+    if (!formData.username.trim()) {
+        setError("Введите имя пользователя");
+        return;
+    }
+    if ((formData.password || "").length < 3) {
+        setError("Пароль должен быть не менее 3 символов");
+        return;
+    }
+    if (!formData.city_id) {
+        setError("Выберите город");
+        return;
+    }
+
+    setSending(true);
+    try {
+        const data = new FormData();
+        data.append("username", formData.username.trim());
+        data.append("password", formData.password);
+        data.append("city_id", String(Number(formData.city_id)));
+
+        // ✅ Возвращаем загрузку аватара
+        if (formData.avatar) {
+            data.append("avatar", formData.avatar);
         }
 
-        setSending(true);
+        const res = await api.post("/register", data);
+
+        const token =
+            res.data?.token ||
+            res.data?.access_token ||
+            res.data?.jwt ||
+            res.data?.data?.token;
+
+        const rawUser =
+            res.data?.user ||
+            res.data?.data?.user || {
+                id: res.data?.id ?? res.data?.user_id,
+                username: res.data?.username ?? formData.username,
+                role: res.data?.role ?? "user",
+                email: res.data?.email,
+                picture: res.data?.picture ?? res.data?.avatar ?? null,
+                city_id: Number(formData.city_id),
+            };
+
+        const user = { ...rawUser, picture: rawUser.picture ?? rawUser.avatar ?? null };
+
+        if (!token || !user) {
+            throw new Error("Некорректный ответ сервера: отсутствует токен или пользователь");
+        }
+
+        dispatch(login({ user, token }));
         try {
-            const data = new FormData();
-            data.append("username", formData.username.trim());
-            data.append("password", formData.password);
-            data.append("city_id", String(Number(formData.city_id)));
+            localStorage.setItem("token", token);
+            localStorage.setItem("user", JSON.stringify(user));
+        } catch {}
 
-            // ⚠️ ВАЖНО: временно НЕ отправляем avatar, чтобы избежать 500 на Windows из-за абсолютного пути "/uploads/..."
-            // if (formData.avatar) data.append("avatar", formData.avatar);
+        navigate("/profile", { replace: true });
+    } catch (err) {
+        console.error("Ошибка при регистрации:", err);
+        const status = err.response?.status;
+        const payload = err.response?.data;
+        setError(
+            (payload?.error || payload?.message || err.message || "Ошибка при регистрации") +
+            (status ? ` (HTTP ${status})` : "")
+        );
+    } finally {
+        setSending(false);
+    }
+};
 
-            const res = await api.post("/register", data);
-
-            const token =
-                res.data?.token ||
-                res.data?.access_token ||
-                res.data?.jwt ||
-                res.data?.data?.token;
-
-            const rawUser =
-                res.data?.user ||
-                res.data?.data?.user || {
-                    id: res.data?.id ?? res.data?.user_id,
-                    username: res.data?.username ?? formData.username,
-                    role: res.data?.role ?? "user",
-                    email: res.data?.email,
-                    picture: res.data?.picture ?? res.data?.avatar ?? null,
-                    city_id: Number(formData.city_id),
-                };
-
-            const user = { ...rawUser, picture: rawUser.picture ?? rawUser.avatar ?? null };
-
-            if (!token || !user) {
-                throw new Error("Некорректный ответ сервера: отсутствует токен или пользователь");
-            }
-
-            dispatch(login({ user, token }));
-            try {
-                localStorage.setItem("token", token);
-                localStorage.setItem("user", JSON.stringify(user));
-            } catch {}
-
-            // Фото загрузим позже со страницы профиля через /update-profile
-            navigate("/profile", { replace: true });
-        } catch (err) {
-            // Печатаем максимум деталей, чтобы понять точную причину 500
-            console.error("Ошибка при регистрации:", err);
-            const status = err.response?.status;
-            const payload = err.response?.data;
-            setError(
-                (payload?.error || payload?.message || err.message || "Ошибка при регистрации") +
-                (status ? ` (HTTP ${status})` : "")
-            );
-        } finally {
-            setSending(false);
-        }
-    };
 
     return (
         <Container className="mt-5">
