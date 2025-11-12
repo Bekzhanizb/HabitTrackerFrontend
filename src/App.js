@@ -2,46 +2,52 @@ import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 
-// UI
 import Navbar from "./components/Navbar";
-import "bootstrap/dist/css/bootstrap.min.css";
-import "./styles/theme.css";
-
-// Pages
-import Landing from "./pages/Landing";
-import Main from "./pages/Main";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ProfilePage from "./pages/ProfilePage";
+import Main from "./pages/Main";
+import Diary from "./pages/Diary";
+import AdminPanel from "./pages/AdminPanel";
+
+import "bootstrap/dist/css/bootstrap.min.css";
+import "./styles/theme.css";
+
+const ProtectedRoute = ({ children }) => {
+    const { isAuthenticated } = useSelector((state) => state.user);
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    return children;
+};
 
 function App() {
-    const { isAuthenticated } = useSelector((state) => state.user);
+    const { user } = useSelector((s)=>s.user);
+    const isAdmin = user?.role === "admin";
 
     return (
         <Router>
             <Navbar />
             <div className="container container-page">
                 <Routes>
-                    {/* Главная: гостям — лендинг, авторизованным — список привычек */}
-                    <Route path="/" element={isAuthenticated ? <Main /> : <Landing />} />
+                    <Route path="/" element={<Main />} />
+                    <Route path="/diary" element={<Diary />} />
 
-                    {/* Логин/Регистрация: если уже вошёл — на главную */}
-                    <Route
-                        path="/login"
-                        element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" replace />}
-                    />
-                    <Route
-                        path="/register"
-                        element={!isAuthenticated ? <RegisterPage /> : <Navigate to="/" replace />}
-                    />
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/register" element={<RegisterPage />} />
 
-                    {/* Профиль: только для авторизованных */}
                     <Route
                         path="/profile"
-                        element={isAuthenticated ? <ProfilePage /> : <Navigate to="/login" replace />}
+                        element={<ProtectedRoute><ProfilePage /></ProtectedRoute>}
                     />
 
-                    {/* Фоллбек */}
+                    <Route
+                        path="/admin"
+                        element={
+                            <ProtectedRoute>
+                                {isAdmin ? <AdminPanel /> : <Navigate to="/" replace />}
+                            </ProtectedRoute>
+                        }
+                    />
+
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </div>

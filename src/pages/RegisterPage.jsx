@@ -98,9 +98,6 @@ export default function RegisterPage() {
             data.append("password", formData.password);
             data.append("city_id", String(Number(formData.city_id)));
 
-            // ⚠️ ВАЖНО: временно НЕ отправляем avatar, чтобы избежать 500 на Windows из-за абсолютного пути "/uploads/..."
-            // if (formData.avatar) data.append("avatar", formData.avatar);
-
             const res = await api.post("/register", data);
 
             const token =
@@ -132,10 +129,8 @@ export default function RegisterPage() {
                 localStorage.setItem("user", JSON.stringify(user));
             } catch {}
 
-            // Фото загрузим позже со страницы профиля через /update-profile
             navigate("/profile", { replace: true });
         } catch (err) {
-            // Печатаем максимум деталей, чтобы понять точную причину 500
             console.error("Ошибка при регистрации:", err);
             const status = err.response?.status;
             const payload = err.response?.data;

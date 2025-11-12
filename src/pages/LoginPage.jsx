@@ -22,7 +22,6 @@ const LoginPage = () => {
         setLoading(true);
 
         try {
-            // ВАЖНО: отправляем как x-www-form-urlencoded (совместимо с c.PostForm)
             const body = new URLSearchParams();
             body.set("username", username);
             body.set("password", password);
