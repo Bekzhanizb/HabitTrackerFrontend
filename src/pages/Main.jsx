@@ -53,7 +53,7 @@ const Main = () => {
     const fetchHabits = async () => {
         setLoading(true); setError("");
         try {
-            const res = await api.get("/habits", { params: { user_id: userId } });
+            const res = await api.get("/habits");
             const data = Array.isArray(res.data) ? res.data : [];
             setHabits(data);
             setSelected(null); // ничего не выбрано по умолчанию

@@ -27,9 +27,7 @@ const LoginPage = () => {
             body.set("username", username);
             body.set("password", password);
 
-            const res = await api.post("/login", body, {
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            });
+            const res = await api.post("/login", {username, password}, {});
 
             const token =
                 res.data?.token ||
