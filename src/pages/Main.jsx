@@ -1,36 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Button, Card, Container, Row, Col, Modal, Form, Alert, Spinner, ProgressBar } from "react-bootstrap";
+import React, { useCallback, useEffect, useState } from "react";
+import { Button, Card, Container, Row, Col, Modal, Form, Alert, Spinner } from "react-bootstrap";
 import api from "../api/axios";
 import TimerCircle from "../components/TimerCircle";
-
-const toYMD = (date) => date.toISOString().slice(0, 10);
-
-function calcStats(habit) {
-    const logs = Array.isArray(habit?.Logs) ? habit.Logs : habit?.logs || [];
-    if (!logs.length) return { progress: 0, streak: 0 };
-    const completed = logs
-        .filter((l) => l.is_completed || l.IsCompleted)
-        .map((l) => toYMD(new Date(l.date || l.Date)));
-    const set = new Set(completed);
-    const today = new Date();
-
-    let count = 0;
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        if (set.has(toYMD(d))) count++;
-    }
-    const progress = Math.round((count / 7) * 100);
-
-    let streak = 0;
-    for (let i = 0; ; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        if (set.has(toYMD(d))) streak++;
-        else break;
-    }
-    return { progress, streak };
-}
 
 const Main = () => {
     const [habits, setHabits] = useState([]);
@@ -40,27 +11,54 @@ const Main = () => {
     const [error, setError] = useState("");
 
     const [showModal, setShowModal] = useState(false);
-    const [formData, setFormData] = useState({ title: "", description: "", frequency: "daily" });
+    const [formData, setFormData] = useState({
+        title: "",
+        description: "",
+        frequency: "daily",
+    });
 
-    const user = useMemo(() => { try { return JSON.parse(localStorage.getItem("user")); } catch { return null; } }, []);
+    const user = (() => {
+        try {
+            return JSON.parse(localStorage.getItem("user"));
+        } catch {
+            return null;
+        }
+    })();
     const userId = user?.id ?? null;
 
-    useEffect(() => {
-        if (!userId) { setLoading(false); return; }
-        fetchHabits();
-    }, [userId]);
-
-    const fetchHabits = async () => {
-        setLoading(true); setError("");
+    const fetchHabits = useCallback(async () => {
+        if (!userId) {
+            setHabits([]);
+            setSelected(null);
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        setError("");
         try {
-            const res = await api.get("/habits");
-            const data = Array.isArray(res.data) ? res.data : [];
-            setHabits(data);
-            setSelected(null); // ничего не выбрано по умолчанию
+            const res = await api.get("/habits", { params: { user_id: userId } });
+            const list = Array.isArray(res.data) ? res.data : [];
+            setHabits(list);
+            setSelected(list[0] || null);
         } catch (err) {
             console.error("Ошибка при загрузке привычек:", err);
-            setError(err.response?.data?.error || err.response?.data?.message || "Не удалось загрузить привычки");
-        } finally { setLoading(false); }
+            setError(
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                "Не удалось загрузить привычки"
+            );
+        } finally {
+            setLoading(false);
+        }
+    }, [userId]);
+
+    useEffect(() => {
+        fetchHabits();
+    }, [fetchHabits]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData((s) => ({ ...s, [name]: value }));
     };
 
     const handleSubmit = async (e) => {
@@ -74,135 +72,189 @@ const Main = () => {
             await fetchHabits();
         } catch (err) {
             console.error("Ошибка при сохранении привычки:", err);
-            setError(err.response?.data?.error || err.response?.data?.message || "Ошибка при сохранении привычки");
-        } finally { setSaving(false); }
+            setError(
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                "Ошибка при сохранении привычки"
+            );
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleAdd = () => {
+        setFormData({ title: "", description: "", frequency: "daily" });
+        setShowModal(true);
     };
 
     return (
         <Container className="container-page">
-            <div className="d-flex align-items-center justify-content-between mb-3">
-                <div>
-                    <h2 className="fw-bold m-0">Habits</h2>
-                    <div className="footer-muted">Choose a habit to focus. If none selected, the stage is empty.</div>
-                </div>
-                <Button variant="primary" onClick={() => setShowModal(true)} disabled={!userId}>+ New habit</Button>
-            </div>
+            <Row className="mb-4">
+                <Col lg={7}>
+                    <div className="hero rounded-2xl p-4 shadow-soft">
+                        <span className="badge badge-soft mb-2">DreamyFocus · Habits</span>
+                        <h2 className="mb-2">Собери свои привычки в одном месте</h2>
+                        <p className="footer-muted mb-0">
+                            Выбирай привычку, запускай фокус-таймер и возвращайся к ней каждый день.
+                        </p>
+                    </div>
+                </Col>
+                <Col lg={5} className="d-flex justify-content-lg-end align-items-center mt-3 mt-lg-0">
+                    <Button
+                        variant="primary"
+                        className="shadow-soft"
+                        onClick={handleAdd}
+                        disabled={!userId}
+                    >
+                        + Добавить привычку
+                    </Button>
+                </Col>
+            </Row>
 
             {!userId && (
-                <Alert variant="warning" className="mb-4">
-                    Вы не вошли в систему. <a className="link-cta" href="/login">Войти</a>
+                <Alert variant="warning" className="mb-3">
+                    Вы не вошли в систему. Пожалуйста,{" "}
+                    <a href="/login" className="link-cta">
+                        войдите
+                    </a>
+                    , чтобы просматривать и изменять привычки.
                 </Alert>
             )}
 
-            {error && <Alert variant="danger" className="mb-3">{error}</Alert>}
-
-            {loading ? (
-                <div className="d-flex justify-content-center py-5"><Spinner animation="border"/></div>
-            ) : (
-                <Row className="g-4">
-                    {/* Список слева */}
-                    <Col lg={4}>
-                        <Card className="rounded-2xl">
-                            <Card.Body>
-                                <div className="d-flex align-items-center justify-content-between mb-2">
-                                    <div className="fw-bold">My Habits</div>
-                                    <span className="badge badge-soft rounded-pill">{habits.length}</span>
-                                </div>
-                                {habits.length === 0 ? (
-                                    <div className="footer-muted">Список пуст.</div>
-                                ) : (
-                                    <div className="d-flex flex-column gap-2">
-                                        {habits.map((h) => {
-                                            const { progress, streak } = calcStats(h);
-                                            const active = selected?.id === h.id;
-                                            return (
-                                                <button
-                                                    key={h.id}
-                                                    className="btn text-start"
-                                                    style={{
-                                                        background: active ? "rgba(255,255,255,.08)" : "transparent",
-                                                        border: "1px solid var(--border)",
-                                                        color: "#fff",
-                                                        borderRadius: 12,
-                                                        padding: "10px 12px"
-                                                    }}
-                                                    onClick={() => setSelected(h)}
-                                                >
-                                                    <div className="d-flex justify-content-between">
-                                                        <div className="fw-semibold">{h.title}</div>
-                                                        <span className="badge badge-soft rounded-pill">🔥 {streak}d</span>
-                                                    </div>
-                                                    <div className="footer-muted">
-                                                        {h.frequency === "daily" ? "Every day" : h.frequency === "weekly" ? "Every week" : h.frequency === "monthly" ? "Every month" : h.frequency}
-                                                    </div>
-                                                    <ProgressBar className="mt-2" now={progress}/>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </Card.Body>
-                        </Card>
-                    </Col>
-
-                    <Col lg={8}>
-                        {!selected ? (
-                            <div className="empty rounded-2xl p-5 text-center">
-                                <h5 className="mb-2">Ничего не выбрано</h5>
-                                <div className="footer-muted">Выберите привычку слева, чтобы начать таймер и видеть детали.</div>
-                            </div>
-                        ) : (
-                            <Card className="rounded-2xl h-100">
-                                <Card.Body>
-                                    <div className="d-flex align-items-start justify-content-between">
-                                        <div>
-                                            <div className="habit-title">{selected.title}</div>
-                                            <div className="habit-meta mt-1">
-                                                {selected.frequency === "daily" ? "Every day" : selected.frequency === "weekly" ? "Every week" : selected.frequency === "monthly" ? "Every month" : selected.frequency}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {selected.description && <div className="mt-3" style={{color:"var(--muted)"}}>{selected.description}</div>}
-
-                                    <div className="my-4 d-flex justify-content-center">
-                                        <TimerCircle initialSeconds={25 * 60} />
-                                    </div>
-
-                                    <div className="mt-3">
-                                        <div className="footer-muted mb-1">7-day progress</div>
-                                        <ProgressBar now={calcStats(selected).progress}/>
-                                    </div>
-                                </Card.Body>
-                            </Card>
-                        )}
-                    </Col>
-                </Row>
+            {error && (
+                <Alert variant="danger" className="mb-3">
+                    {error}
+                </Alert>
             )}
 
-            <Modal show={showModal} onHide={() => setShowModal(false)} centered>
-                <Modal.Header closeButton><Modal.Title>Новая привычка</Modal.Title></Modal.Header>
+            <Row>
+                <Col lg={7} className="mb-4">
+                    {loading ? (
+                        <div className="d-flex justify-content-center py-5">
+                            <Spinner animation="border" role="status" />
+                        </div>
+                    ) : habits.length === 0 ? (
+                        <div className="empty rounded-2xl p-4 text-center">
+                            <h5 className="mb-1">Пока нет привычек</h5>
+                            <p className="footer-muted mb-0">
+                                Нажми «Добавить привычку», чтобы начать свой трекер.
+                            </p>
+                        </div>
+                    ) : (
+                        <Row>
+                            {habits.map((habit) => {
+                                const isActive = selected?.id === habit.id;
+                                return (
+                                    <Col md={6} key={habit.id} className="mb-3">
+                                        <Card
+                                            className={`rounded-2xl shadow-soft ${
+                                                isActive ? "border border-primary" : ""
+                                            }`}
+                                            onClick={() => setSelected(habit)}
+                                            style={{ cursor: "pointer" }}
+                                        >
+                                            <Card.Body>
+                                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                                    <div>
+                                                        <div className="habit-title">{habit.title}</div>
+                                                        {habit.description && (
+                                                            <div className="habit-meta mt-1">{habit.description}</div>
+                                                        )}
+                                                    </div>
+                                                    <span className="badge badge-soft">
+                            {habit.frequency === "daily"
+                                ? "Ежедневно"
+                                : habit.frequency === "weekly"
+                                    ? "Еженедельно"
+                                    : habit.frequency === "monthly"
+                                        ? "Ежемесячно"
+                                        : habit.frequency}
+                          </span>
+                                                </div>
+                                            </Card.Body>
+                                        </Card>
+                                    </Col>
+                                );
+                            })}
+                        </Row>
+                    )}
+                </Col>
+
+                <Col lg={5}>
+                    <div className="card rounded-2xl p-4 shadow-soft h-100 d-flex flex-column align-items-center justify-content-center">
+                        {selected ? (
+                            <>
+                                <h5 className="mb-3 text-center">
+                                    Фокус по привычке: <span className="habit-title">{selected.title}</span>
+                                </h5>
+                                <TimerCircle
+                                    durationSeconds={25 * 60}
+                                    label={
+                                        selected.frequency === "daily"
+                                            ? "Ежедневный фокус"
+                                            : selected.frequency === "weekly"
+                                                ? "Фокус недели"
+                                                : "Фокус месяца"
+                                    }
+                                />
+                            </>
+                        ) : (
+                            <div className="text-center footer-muted">
+                                Выберите привычку слева, чтобы запустить таймер.
+                            </div>
+                        )}
+                    </div>
+                </Col>
+            </Row>
+
+            <Modal show={showModal} onHide={() => setShowModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Новая привычка</Modal.Title>
+                </Modal.Header>
                 <Modal.Body>
                     {error && <Alert variant="danger">{error}</Alert>}
                     <Form onSubmit={handleSubmit}>
                         <Form.Group className="mb-3">
-                            <Form.Label>Title</Form.Label>
-                            <Form.Control className="input-dark" type="text" name="title" value={formData.title} onChange={(e)=>setFormData(s=>({...s, title:e.target.value}))} required/>
+                            <Form.Label>Название</Form.Label>
+                            <Form.Control
+                                className="input-dark"
+                                type="text"
+                                name="title"
+                                value={formData.title}
+                                onChange={handleChange}
+                                required
+                            />
                         </Form.Group>
+
                         <Form.Group className="mb-3">
-                            <Form.Label>Description</Form.Label>
-                            <Form.Control className="input-dark" as="textarea" rows={3} name="description" value={formData.description} onChange={(e)=>setFormData(s=>({...s, description:e.target.value}))}/>
+                            <Form.Label>Описание</Form.Label>
+                            <Form.Control
+                                className="input-dark"
+                                as="textarea"
+                                rows={3}
+                                name="description"
+                                value={formData.description}
+                                onChange={handleChange}
+                            />
                         </Form.Group>
+
                         <Form.Group className="mb-3">
-                            <Form.Label>Frequency</Form.Label>
-                            <Form.Select className="input-dark" name="frequency" value={formData.frequency} onChange={(e)=>setFormData(s=>({...s, frequency:e.target.value}))} required>
-                                <option value="daily">Every day</option>
-                                <option value="weekly">Every week</option>
-                                <option value="monthly">Every month</option>
+                            <Form.Label>Частота</Form.Label>
+                            <Form.Select
+                                className="input-dark"
+                                name="frequency"
+                                value={formData.frequency}
+                                onChange={handleChange}
+                                required
+                            >
+                                <option value="daily">Каждый день</option>
+                                <option value="weekly">Каждую неделю</option>
+                                <option value="monthly">Каждый месяц</option>
                             </Form.Select>
                         </Form.Group>
-                        <Button type="submit" variant="primary" className="w-100" disabled={saving}>
-                            {saving ? "Saving..." : "Добавить привычку"}
+
+                        <Button type="submit" variant="primary" className="w-100" disabled={saving || !userId}>
+                            {saving ? "Сохранение..." : "Добавить привычку"}
                         </Button>
                     </Form>
                 </Modal.Body>

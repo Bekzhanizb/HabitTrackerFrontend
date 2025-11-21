@@ -22,12 +22,7 @@ const LoginPage = () => {
         setLoading(true);
 
         try {
-            // ВАЖНО: отправляем как x-www-form-urlencoded (совместимо с c.PostForm)
-            const body = new URLSearchParams();
-            body.set("username", username);
-            body.set("password", password);
-
-            const res = await api.post("/login", {username, password}, {});
+            const res = await api.post("/login", { username, password });
 
             const token =
                 res.data?.token ||
@@ -41,20 +36,19 @@ const LoginPage = () => {
                     id: res.data?.id ?? res.data?.user_id,
                     username: res.data?.username ?? username,
                     role: res.data?.role ?? "user",
-                    email: res.data?.email,
-                    picture: res.data?.picture ?? res.data?.avatar ?? null,
+                    city_id: res.data?.city_id,
+                    picture: res.data?.picture,
                 };
 
-            const user = { ...rawUser, picture: rawUser.picture ?? rawUser.avatar ?? null };
-
-            if (!token || !user) {
+            if (!token || !rawUser) {
                 throw new Error("Некорректный ответ сервера: отсутствует токен или пользователь");
             }
 
-            dispatch(login({ user, token }));
+            dispatch(login({ user: rawUser, token }));
+
             try {
                 localStorage.setItem("token", token);
-                localStorage.setItem("user", JSON.stringify(user));
+                localStorage.setItem("user", JSON.stringify(rawUser));
             } catch {}
 
             const to = location.state?.from?.pathname || "/profile";
@@ -73,68 +67,78 @@ const LoginPage = () => {
     };
 
     return (
-        <Container className="mt-5">
+        <Container className="container-page">
             <Row className="justify-content-center">
-                <Col md={6}>
-                    <h3 className="text-center mb-4">Вход в систему</h3>
+                <Col md={6} lg={5}>
+                    <div className="card rounded-2xl p-4 shadow-soft hero">
+                        <h3 className="text-center mb-3">Вход в DreamyFocus</h3>
+                        <p className="text-center footer-muted mb-4">
+                            Вернись к своим привычкам и заметкам.
+                        </p>
 
-                    {error && (
-                        <Alert variant="danger" className="text-center">
-                            {error}
-                        </Alert>
-                    )}
+                        {error && (
+                            <Alert variant="danger" className="text-center">
+                                {error}
+                            </Alert>
+                        )}
 
-                    <Form onSubmit={handleLogin}>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Имя пользователя</Form.Label>
-                            <Form.Control
-                                type="text"
-                                placeholder="Введите имя пользователя"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                autoComplete="username"
-                                required
-                            />
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label>Пароль</Form.Label>
-                            <div className="d-flex gap-2">
+                        <Form onSubmit={handleLogin}>
+                            <Form.Group className="mb-3">
+                                <Form.Label>Имя пользователя</Form.Label>
                                 <Form.Control
-                                    type={showPass ? "text" : "password"}
-                                    placeholder="Введите пароль"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    autoComplete="current-password"
+                                    className="input-dark"
+                                    type="text"
+                                    placeholder="Введите имя пользователя"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    autoComplete="username"
                                     required
                                 />
-                                <Button
-                                    variant="outline-secondary"
-                                    type="button"
-                                    onClick={() => setShowPass((s) => !s)}
-                                >
-                                    {showPass ? "Скрыть" : "Показать"}
-                                </Button>
-                            </div>
-                        </Form.Group>
+                            </Form.Group>
 
-                        <Button type="submit" variant="primary" className="w-100" disabled={loading}>
-                            {loading ? (
-                                <>
-                                    <Spinner size="sm" animation="border" className="me-2" />
-                                    Входим...
-                                </>
-                            ) : (
-                                "Войти"
-                            )}
-                        </Button>
+                            <Form.Group className="mb-4">
+                                <Form.Label>Пароль</Form.Label>
+                                <div className="d-flex gap-2">
+                                    <Form.Control
+                                        className="input-dark"
+                                        type={showPass ? "text" : "password"}
+                                        placeholder="Введите пароль"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        autoComplete="current-password"
+                                        required
+                                    />
+                                    <Button
+                                        variant="outline-secondary"
+                                        type="button"
+                                        onClick={() => setShowPass((s) => !s)}
+                                    >
+                                        {showPass ? "Скрыть" : "Показать"}
+                                    </Button>
+                                </div>
+                            </Form.Group>
 
-                        <div className="text-center mt-3">
-                            <small>
+                            <Button
+                                type="submit"
+                                variant="primary"
+                                className="w-100 mb-3"
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <>
+                                        <Spinner size="sm" animation="border" className="me-2" />
+                                        Входим...
+                                    </>
+                                ) : (
+                                    "Войти"
+                                )}
+                            </Button>
+
+                            <div className="text-center footer-muted">
                                 Нет аккаунта? <Link to="/register">Зарегистрируйтесь</Link>
-                            </small>
-                        </div>
-                    </Form>
+                            </div>
+                        </Form>
+                    </div>
                 </Col>
             </Row>
         </Container>

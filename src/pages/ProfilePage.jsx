@@ -1,8 +1,17 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Container, Row, Col, Form, Button, Image, Spinner, Alert, Card } from "react-bootstrap";
+import React, { useEffect, useState } from "react";
+import {
+    Container,
+    Row,
+    Col,
+    Form,
+    Button,
+    Image,
+    Spinner,
+    Alert,
+} from "react-bootstrap";
 import { useDispatch, useSelector } from "react-redux";
-import { updateUser } from "../slices/userSlice";
 import api from "../api/axios";
+import { updateUser } from "../slices/userSlice";
 import { API_BASE } from "../config";
 
 const joinUrl = (base, path) => {
@@ -13,8 +22,8 @@ const joinUrl = (base, path) => {
     return `${b}${p}`;
 };
 
-export default function ProfilePage(){
-    const { user } = useSelector(s=>s.user);
+const ProfilePage = () => {
+    const { user } = useSelector((state) => state.user);
     const dispatch = useDispatch();
 
     const [username, setUsername] = useState(user?.username || "");
@@ -26,57 +35,91 @@ export default function ProfilePage(){
     const [listLoading, setListLoading] = useState(true);
     const [error, setError] = useState("");
 
-    const token = useMemo(() => localStorage.getItem("token") || null, []);
+    useEffect(() => {
+        setUsername(user?.username || "");
+        setCityId(user?.city_id ?? "");
+        setPreview(user?.picture || "");
+    }, [user]);
 
-    useEffect(()=>{
-        (async ()=>{
+    useEffect(() => {
+        const controller = new AbortController();
+        (async () => {
             setListLoading(true);
-            try{
-                const res = await api.get("/api/cities");
-                setCities(Array.isArray(res.data)? res.data : []);
-            }catch(e){
-                setError(e.response?.data?.error || "Не удалось загрузить города");
-            }finally{ setListLoading(false); }
+            try {
+                const res = await api.get("/api/cities", { signal: controller.signal });
+                setCities(Array.isArray(res.data) ? res.data : []);
+            } catch (err) {
+                console.error("Ошибка при загрузке городов:", err);
+                setError(
+                    err.response?.data?.message ||
+                    err.response?.data?.error ||
+                    "Не удалось загрузить список городов"
+                );
+            } finally {
+                setListLoading(false);
+            }
         })();
-    },[]);
+        return () => controller.abort();
+    }, []);
 
-    useEffect(()=> ()=>{ if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview); }, [preview]);
-
-    const avatarSrc = preview
-        ? (preview.startsWith("http") ? preview : joinUrl(API_BASE, preview.startsWith("/")? preview : `/${preview}`))
-        : "https://via.placeholder.com/150";
+    useEffect(() => {
+        return () => {
+            if (preview && preview.startsWith("blob:")) {
+                URL.revokeObjectURL(preview);
+            }
+        };
+    }, [preview]);
 
     const handlePictureChange = (e) => {
-        const file = e.target.files?.[0];
-        setPicture(file || null);
-        if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+        const file = e.target.files?.[0] || null;
+        setPicture(file);
+        if (preview && preview.startsWith("blob:")) {
+            URL.revokeObjectURL(preview);
+        }
         setPreview(file ? URL.createObjectURL(file) : user?.picture || "");
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError(""); setLoading(true);
-        try{
-            const form = new FormData();
-            form.append("username", username);
-            if (cityId !== "" && cityId !== null && cityId !== undefined) {
-                form.append("city_id", String(Number(cityId)));
-            }
-            if (picture) form.append("picture", picture);
+        setError("");
+        setLoading(true);
 
-            const res = await api.post("/update-profile", form);
-            const updated = res.data?.user || res.data;
+        try {
+            const formData = new FormData();
+            formData.append("username", username);
+            if (cityId !== "" && cityId !== null && cityId !== undefined) {
+                formData.append("city_id", String(Number(cityId)));
+            }
+            if (picture) formData.append("picture", picture);
+
+            const res = await api.post("/update-profile", formData);
+
+            const updated = res.data?.user || res.data?.data?.user || res.data;
             if (!updated) throw new Error("Некорректный ответ сервера");
 
             dispatch(updateUser(updated));
+
             try {
-                const saved = JSON.parse(localStorage.getItem("user") || "{}");
-                localStorage.setItem("user", JSON.stringify({ ...saved, ...updated }));
+                const savedUser = JSON.parse(localStorage.getItem("user") || "{}");
+                localStorage.setItem("user", JSON.stringify({ ...savedUser, ...updated }));
             } catch {}
-            if (updated.picture && !updated.picture.startsWith("http")) setPreview(updated.picture);
-        } catch (err){
-            setError(err.response?.data?.error || err.message || "Ошибка при обновлении профиля");
-        } finally { setLoading(false); }
+
+            if (updated.picture && !updated.picture.startsWith("http")) {
+                setPreview(updated.picture);
+            }
+
+            alert("Профиль успешно обновлен!");
+        } catch (err) {
+            console.error("Ошибка при обновлении профиля:", err);
+            setError(
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                err.message ||
+                "Ошибка при обновлении профиля"
+            );
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (!user) {
@@ -87,62 +130,98 @@ export default function ProfilePage(){
         );
     }
 
+    const avatarSrc = preview
+        ? preview.startsWith("http")
+            ? preview
+            : joinUrl(API_BASE, preview.startsWith("/") ? preview : `/${preview}`)
+        : "https://via.placeholder.com/150";
+
     return (
         <Container className="container-page">
-            <Row className="g-4">
-                <Col lg={4}>
-                    <Card className="rounded-2xl h-100">
-                        <Card.Body className="text-center">
+            <Row className="justify-content-center">
+                <Col md={7} lg={6}>
+                    <div className="card rounded-2xl p-4 shadow-soft">
+                        <div className="text-center mb-4">
                             <Image
-                                src={avatarSrc} roundedCircle width={150} height={150} alt="User Avatar"
+                                src={avatarSrc}
+                                roundedCircle
+                                width={140}
+                                height={140}
+                                alt="User Avatar"
                                 className="shadow-sm object-fit-cover"
-                                onError={(e)=> e.currentTarget.src="https://via.placeholder.com/150"}
+                                onError={(e) => {
+                                    e.currentTarget.src = "https://via.placeholder.com/150";
+                                }}
                             />
-                            <h4 className="mt-3">{user.username}</h4>
-                            <div className="footer-muted">{user.role}</div>
+                            <h3 className="mt-3">{user.username}</h3>
+                            <p className="text-muted mb-0">{user.role}</p>
+                        </div>
 
-                            <div className="mt-3">
-                                <Form.Label className="mb-1">Сменить аватар</Form.Label>
-                                <Form.Control type="file" accept="image/*" onChange={handlePictureChange}/>
+                        {error && (
+                            <Alert variant="danger" className="mb-3">
+                                {error}
+                            </Alert>
+                        )}
+
+                        <Form onSubmit={handleSubmit}>
+                            <Form.Group className="mb-3">
+                                <Form.Label>Имя пользователя</Form.Label>
+                                <Form.Control
+                                    className="input-dark"
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    maxLength={60}
+                                    required
+                                />
+                            </Form.Group>
+
+                            <Form.Group className="mb-3">
+                                <Form.Label>Город</Form.Label>
+                                <Form.Select
+                                    className="input-dark"
+                                    value={cityId}
+                                    onChange={(e) => setCityId(e.target.value)}
+                                    disabled={listLoading}
+                                >
+                                    <option value="">Выберите город...</option>
+                                    {cities.map((city) => (
+                                        <option key={city.id} value={city.id}>
+                                            {city.name}
+                                        </option>
+                                    ))}
+                                </Form.Select>
+                                {listLoading && (
+                                    <div className="mt-2">
+                                        <Spinner size="sm" animation="border" /> Загрузка городов...
+                                    </div>
+                                )}
+                            </Form.Group>
+
+                            <Form.Group className="mb-4">
+                                <Form.Label>Фото профиля</Form.Label>
+                                <Form.Control
+                                    className="input-dark"
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handlePictureChange}
+                                />
+                                <Form.Text muted>
+                                    Поддерживаются изображения (jpg, png, webp).
+                                </Form.Text>
+                            </Form.Group>
+
+                            <div className="d-grid">
+                                <Button variant="primary" type="submit" disabled={loading}>
+                                    {loading ? <Spinner animation="border" size="sm" /> : "Сохранить изменения"}
+                                </Button>
                             </div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-
-                <Col lg={8}>
-                    <Card className="rounded-2xl h-100">
-                        <Card.Body>
-                            <h5 className="fw-bold mb-3">Profile settings</h5>
-                            {error && <Alert variant="danger">{error}</Alert>}
-                            <Form onSubmit={handleSubmit}>
-                                <Row className="g-3">
-                                    <Col md={6}>
-                                        <Form.Group>
-                                            <Form.Label>Имя пользователя</Form.Label>
-                                            <Form.Control className="input-dark" value={username} onChange={(e)=>setUsername(e.target.value)} required/>
-                                        </Form.Group>
-                                    </Col>
-                                    <Col md={6}>
-                                        <Form.Group>
-                                            <Form.Label>Город</Form.Label>
-                                            <Form.Select className="input-dark" value={cityId} onChange={(e)=>setCityId(e.target.value)} disabled={listLoading}>
-                                                <option value="">{listLoading ? "Загрузка..." : "Выберите город..."}</option>
-                                                {cities.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                                            </Form.Select>
-                                        </Form.Group>
-                                    </Col>
-                                </Row>
-
-                                <div className="d-flex justify-content-end mt-4">
-                                    <Button type="submit" variant="primary" disabled={loading}>
-                                        {loading ? <Spinner size="sm" animation="border"/> : "Сохранить изменения"}
-                                    </Button>
-                                </div>
-                            </Form>
-                        </Card.Body>
-                    </Card>
+                        </Form>
+                    </div>
                 </Col>
             </Row>
         </Container>
     );
-}
+};
+
+export default ProfilePage;

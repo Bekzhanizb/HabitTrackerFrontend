@@ -10,23 +10,26 @@ import Main from "./pages/Main";
 import Diary from "./pages/Diary";
 import AdminPanel from "./pages/AdminPanel";
 
-import "bootstrap/dist/css/bootstrap.min.css";
-import "./styles/theme.css";
-
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated } = useSelector((state) => state.user);
+    if (!isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+    return children;
+};
+
+const AdminRoute = ({ children }) => {
+    const { isAuthenticated, user } = useSelector((state) => state.user);
     if (!isAuthenticated) return <Navigate to="/login" replace />;
+    if (user?.role !== "admin") return <Navigate to="/" replace />;
     return children;
 };
 
 function App() {
-    const { user } = useSelector((s)=>s.user);
-    const isAdmin = user?.role === "admin";
-
     return (
         <Router>
             <Navbar />
-            <div className="container container-page">
+            <div className="container mt-4">
                 <Routes>
                     <Route path="/" element={<Main />} />
                     <Route path="/diary" element={<Diary />} />
@@ -36,15 +39,19 @@ function App() {
 
                     <Route
                         path="/profile"
-                        element={<ProtectedRoute><ProfilePage /></ProtectedRoute>}
+                        element={
+                            <ProtectedRoute>
+                                <ProfilePage />
+                            </ProtectedRoute>
+                        }
                     />
 
                     <Route
                         path="/admin"
                         element={
-                            <ProtectedRoute>
-                                {isAdmin ? <AdminPanel /> : <Navigate to="/" replace />}
-                            </ProtectedRoute>
+                            <AdminRoute>
+                                <AdminPanel />
+                            </AdminRoute>
                         }
                     />
 

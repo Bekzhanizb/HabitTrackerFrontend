@@ -1,166 +1,234 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Button, Card, Col, Container, Form, Modal, Row } from "react-bootstrap";
+import { Container, Row, Col, Form, Button, Card, ListGroup } from "react-bootstrap";
 
-const key = "df_diary";
-const load = () => { try { return JSON.parse(localStorage.getItem(key)) || {}; } catch { return {}; } };
-const save = (data) => { try { localStorage.setItem(key, JSON.stringify(data)); } catch {} };
+const STORAGE_KEY = "df_diary_entries";
 
-const toYMD = (d) => d.toISOString().slice(0,10);
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
-function Calendar({ value, onChange }) {
-    const [cursor, setCursor] = useState(new Date(value));
-    const y = cursor.getFullYear();
-    const m = cursor.getMonth();
+const Diary = () => {
+    const [selectedDate, setSelectedDate] = useState(todayISO());
+    const [entries, setEntries] = useState([]);
+    const [mode, setMode] = useState("list"); // list | view | edit
+    const [current, setCurrent] = useState(null);
+    const [form, setForm] = useState({ title: "", body: "" });
 
-    const days = useMemo(() => {
-        const first = new Date(y, m, 1);
-        const start = new Date(first); start.setDate(1 - (first.getDay() || 7) + 1); // понедельник как первый
-        const grid = [];
-        for (let i = 0; i < 42; i++) {
-            const d = new Date(start); d.setDate(start.getDate() + i);
-            grid.push(d);
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+                setEntries(JSON.parse(raw));
+            }
+        } catch {
+            setEntries([]);
         }
-        return grid;
-    }, [y, m]);
+    }, []);
 
-    const isSame = (a,b)=> toYMD(a)===toYMD(b);
-    const isCurMonth = (d)=> d.getMonth()===m;
+    useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+        } catch {}
+    }, [entries]);
 
-    return (
-        <Card className="rounded-2xl h-100">
-            <Card.Body>
-                <div className="d-flex justify-content-between align-items-center mb-3">
-                    <Button variant="outline-primary" size="sm" onClick={()=>setCursor(new Date(y, m-1, 1))}>‹</Button>
-                    <div className="fw-bold">{cursor.toLocaleString("default", { month: "long" })} {y}</div>
-                    <Button variant="outline-primary" size="sm" onClick={()=>setCursor(new Date(y, m+1, 1))}>›</Button>
-                </div>
-                <div className="d-grid" style={{gridTemplateColumns:"repeat(7, 1fr)", gap: 6}}>
-                    {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d)=>(
-                        <div key={d} className="text-center footer-muted">{d}</div>
-                    ))}
-                    {days.map((d, i)=>(
-                        <button
-                            key={i}
-                            className="btn py-2"
-                            style={{
-                                border: isSame(d, value) ? "1px solid var(--primary)" : "1px solid var(--border)",
-                                background: isSame(d, value) ? "rgba(124,92,255,.15)" : isCurMonth(d) ? "rgba(255,255,255,.04)" : "transparent",
-                                borderRadius: 10, color:"#fff"
-                            }}
-                            onClick={()=>onChange(d)}
-                        >
-                            {d.getDate()}
-                        </button>
-                    ))}
-                </div>
-            </Card.Body>
-        </Card>
+    const entriesForDay = useMemo(
+        () => entries.filter((e) => e.date === selectedDate),
+        [entries, selectedDate]
     );
-}
 
-function EntryView({ entry, onBack }) {
-    if (!entry) return null;
-    return (
-        <Card className="rounded-2xl h-100">
-            <Card.Body>
-                <div className="d-flex justify-content-between align-items-center">
-                    <h4 className="m-0">{entry.title || "Без названия"}</h4>
-                    <Button variant="outline-primary" size="sm" onClick={onBack}>← Back</Button>
-                </div>
-                <div className="footer-muted mt-1">{entry.date}</div>
-                <hr/>
-                <div style={{whiteSpace:"pre-wrap"}}>{entry.text || "Пусто"}</div>
-            </Card.Body>
-        </Card>
-    );
-}
+    const handleChangeForm = (e) => {
+        const { name, value } = e.target;
+        setForm((s) => ({ ...s, [name]: value }));
+    };
 
-export default function Diary(){
-    const [store, setStore] = useState(load()); // { "2025-11-12": [ {id,title,text,date}, ... ] }
-    const [selectedDate, setSelectedDate] = useState(new Date());
-    const [activeEntry, setActiveEntry] = useState(null);
+    const handleCreate = () => {
+        setMode("edit");
+        setCurrent(null);
+        setForm({ title: "", body: "" });
+    };
 
-    const ymd = toYMD(selectedDate);
-    const items = store[ymd] || [];
+    const handleSave = () => {
+        if (!form.title.trim() && !form.body.trim()) return;
 
-    useEffect(()=> save(store), [store]);
+        if (current) {
+            setEntries((list) =>
+                list.map((e) =>
+                    e.id === current.id ? { ...e, title: form.title, body: form.body } : e
+                )
+            );
+        } else {
+            const newEntry = {
+                id: Date.now(),
+                date: selectedDate,
+                title: form.title || "Без названия",
+                body: form.body,
+            };
+            setEntries((list) => [newEntry, ...list]);
+            setCurrent(newEntry);
+            setMode("view");
+            return;
+        }
+        setMode("view");
+    };
 
-    const [showNew, setShowNew] = useState(false);
-    const [form, setForm] = useState({ title: "", text: "" });
+    const handleOpen = (entry) => {
+        setCurrent(entry);
+        setForm({ title: entry.title, body: entry.body });
+        setMode("view");
+    };
 
-    const openNew = () => { setForm({ title:"", text:"" }); setShowNew(true); };
-    const saveNew = () => {
-        const entry = { id: crypto.randomUUID(), title: form.title.trim(), text: form.text, date: ymd };
-        setStore(s => ({ ...s, [ymd]: [entry, ...(s[ymd]||[])] }));
-        setShowNew(false);
-        setActiveEntry(entry);
+    const handleDelete = (entry) => {
+        if (!window.confirm("Удалить запись?")) return;
+        setEntries((list) => list.filter((e) => e.id !== entry.id));
+        setCurrent(null);
+        setMode("list");
+    };
+
+    const handleBackToList = () => {
+        setCurrent(null);
+        setMode("list");
     };
 
     return (
         <Container className="container-page">
-            <div className="d-flex align-items-center justify-content-between mb-3">
-                <div>
-                    <h2 className="fw-bold m-0">Diary</h2>
-                    <div className="footer-muted">Write and review your day.</div>
-                </div>
-                <Button variant="primary" onClick={openNew}>+ New entry</Button>
-            </div>
+            <Row className="mb-4">
+                <Col lg={4} className="mb-3">
+                    <div className="card rounded-2xl p-3 shadow-soft">
+                        <h5 className="mb-3">Календарь</h5>
+                        <Form.Group className="mb-3">
+                            <Form.Label className="footer-muted">Выберите дату</Form.Label>
+                            <Form.Control
+                                className="input-dark"
+                                type="date"
+                                value={selectedDate}
+                                onChange={(e) => setSelectedDate(e.target.value)}
+                            />
+                        </Form.Group>
 
-            <Row className="g-4">
-                <Col lg={4}><Calendar value={selectedDate} onChange={setSelectedDate} /></Col>
+                        <Button variant="primary" className="w-100" onClick={handleCreate}>
+                            + Новая запись
+                        </Button>
+                    </div>
+                </Col>
 
                 <Col lg={8}>
-                    {!activeEntry ? (
-                        <Card className="rounded-2xl">
+                    {mode === "list" && (
+                        <Card className="rounded-2xl shadow-soft">
                             <Card.Body>
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <div className="fw-bold">Entries for {ymd}</div>
-                                    <span className="badge badge-soft rounded-pill">{items.length}</span>
-                                </div>
-                                {items.length === 0 ? (
+                                <h5 className="mb-3">
+                                    Записи за{" "}
+                                    <span className="habit-title">
+                    {new Date(selectedDate).toLocaleDateString()}
+                  </span>
+                                </h5>
+                                {entriesForDay.length === 0 ? (
                                     <div className="empty rounded-2xl p-4 text-center">
-                                        <div className="mb-1">Записей нет</div>
-                                        <div className="footer-muted">Нажмите «New entry», чтобы добавить первую запись.</div>
+                                        <p className="mb-0 footer-muted">
+                                            В этот день пока нет записей. Нажмите «Новая запись», чтобы добавить.
+                                        </p>
                                     </div>
                                 ) : (
-                                    <div className="d-flex flex-column gap-2">
-                                        {items.map(it=>(
-                                            <button
-                                                key={it.id}
-                                                className="btn text-start"
-                                                style={{border:"1px solid var(--border)", color:"#fff", borderRadius:12, background:"rgba(255,255,255,.04)"}}
-                                                onClick={()=>setActiveEntry(it)}
+                                    <ListGroup variant="flush">
+                                        {entriesForDay.map((entry) => (
+                                            <ListGroup.Item
+                                                key={entry.id}
+                                                className="bg-transparent text-white d-flex justify-content-between align-items-center"
+                                                style={{ borderColor: "rgba(255,255,255,.08)" }}
                                             >
-                                                <div className="fw-semibold">{it.title || "Без названия"}</div>
-                                                <div className="footer-muted">{it.text?.slice(0, 140) || "Пусто"}{(it.text||"").length>140?"…":""}</div>
-                                            </button>
+                                                <div onClick={() => handleOpen(entry)} style={{ cursor: "pointer" }}>
+                                                    <div className="habit-title">{entry.title}</div>
+                                                    {entry.body && (
+                                                        <div className="footer-muted">
+                                                            {entry.body.length > 80
+                                                                ? entry.body.slice(0, 80) + "..."
+                                                                : entry.body}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <Button
+                                                    variant="outline-danger"
+                                                    size="sm"
+                                                    onClick={() => handleDelete(entry)}
+                                                >
+                                                    🗑
+                                                </Button>
+                                            </ListGroup.Item>
                                         ))}
-                                    </div>
+                                    </ListGroup>
                                 )}
                             </Card.Body>
                         </Card>
-                    ) : (
-                        <EntryView entry={activeEntry} onBack={()=>setActiveEntry(null)} />
+                    )}
+
+                    {(mode === "view" || mode === "edit") && (
+                        <Card className="rounded-2xl shadow-soft">
+                            <Card.Body>
+                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                    <Button variant="outline-secondary" size="sm" onClick={handleBackToList}>
+                                        ← К списку
+                                    </Button>
+                                    <small className="footer-muted">
+                                        {new Date(selectedDate).toLocaleDateString()}
+                                    </small>
+                                </div>
+
+                                <Form>
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Заголовок</Form.Label>
+                                        <Form.Control
+                                            className="input-dark"
+                                            type="text"
+                                            name="title"
+                                            value={form.title}
+                                            onChange={handleChangeForm}
+                                            placeholder="Например, «Как прошёл день»"
+                                        />
+                                    </Form.Group>
+
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Текст записи</Form.Label>
+                                        <Form.Control
+                                            className="input-dark"
+                                            as="textarea"
+                                            rows={8}
+                                            name="body"
+                                            value={form.body}
+                                            onChange={handleChangeForm}
+                                            placeholder="Поделись мыслями, планами, успехами..."
+                                        />
+                                    </Form.Group>
+
+                                    <div className="d-flex justify-content-between">
+                                        {current && (
+                                            <Button
+                                                variant="outline-danger"
+                                                type="button"
+                                                onClick={() => handleDelete(current)}
+                                            >
+                                                Удалить
+                                            </Button>
+                                        )}
+                                        <div className="ms-auto d-flex gap-2">
+                                            {mode === "view" && (
+                                                <Button
+                                                    variant="outline-primary"
+                                                    type="button"
+                                                    onClick={() => setMode("edit")}
+                                                >
+                                                    Редактировать
+                                                </Button>
+                                            )}
+                                            <Button variant="primary" type="button" onClick={handleSave}>
+                                                Сохранить
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </Form>
+                            </Card.Body>
+                        </Card>
                     )}
                 </Col>
             </Row>
-
-            <Modal show={showNew} onHide={()=>setShowNew(false)} centered>
-                <Modal.Header closeButton><Modal.Title>New entry — {ymd}</Modal.Title></Modal.Header>
-                <Modal.Body>
-                    <Form onSubmit={(e)=>{e.preventDefault(); saveNew();}}>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Title</Form.Label>
-                            <Form.Control className="input-dark" value={form.title} onChange={(e)=>setForm(s=>({...s,title:e.target.value}))}/>
-                        </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Text</Form.Label>
-                            <Form.Control className="input-dark" as="textarea" rows={8} value={form.text} onChange={(e)=>setForm(s=>({...s,text:e.target.value}))}/>
-                        </Form.Group>
-                        <Button type="submit" className="w-100" variant="primary">Save</Button>
-                    </Form>
-                </Modal.Body>
-            </Modal>
         </Container>
     );
-}
+};
+
+export default Diary;
