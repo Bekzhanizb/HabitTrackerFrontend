@@ -22,7 +22,7 @@ const LoginPage = () => {
         setLoading(true);
 
         try {
-            const res = await api.post("/login", { username, password });
+            const res = await api.post("/api/login", { username, password });
 
             const token =
                 res.data?.token ||

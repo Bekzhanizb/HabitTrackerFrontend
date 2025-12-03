@@ -36,7 +36,7 @@ const Main = () => {
         setLoading(true);
         setError("");
         try {
-            const res = await api.get("/habits", { params: { user_id: userId } });
+            const res = await api.get("/api/habits", { params: { user_id: userId } });
             const list = Array.isArray(res.data) ? res.data : [];
             setHabits(list);
             setSelected(list[0] || null);
