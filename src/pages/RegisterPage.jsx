@@ -98,13 +98,15 @@ export default function RegisterPage() {
         data.append("password", formData.password);
         data.append("city_id", String(Number(formData.city_id)));
 
-        // ✅ Возвращаем загрузку аватара
+        // ✅ Возвращаем загрузку аватараф
         if (formData.avatar) {
             data.append("avatar", formData.avatar);
         }
 
-        const res = await api.post("/register", data);
-
+const res = await api.post("/api/register", data, {
+    headers: { "Content-Type": "multipart/form-data" },
+});
+ 
         const token =
             res.data?.token ||
             res.data?.access_token ||
@@ -117,7 +119,6 @@ export default function RegisterPage() {
                 id: res.data?.id ?? res.data?.user_id,
                 username: res.data?.username ?? formData.username,
                 role: res.data?.role ?? "user",
-                email: res.data?.email,
                 picture: res.data?.picture ?? res.data?.avatar ?? null,
                 city_id: Number(formData.city_id),
             };
