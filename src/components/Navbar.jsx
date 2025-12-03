@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../slices/userSlice";
@@ -12,11 +12,17 @@ const joinUrl = (base, path) => {
     return `${b}${p}`;
 };
 
+// 🔥 Placeholder avatar для fallback
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect fill='%234a5568' width='100' height='100'/%3E%3Ctext x='50' y='55' font-family='Arial' font-size='40' fill='%23e2e8f0' text-anchor='middle'%3E%3F%3C/text%3E%3C/svg%3E";
+
 const Navbar = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const location = useLocation();
     const { user, isAuthenticated } = useSelector((state) => state.user);
+    
+    // 🔥 Отслеживаем ошибки загрузки изображения
+    const [imageError, setImageError] = useState(false);
 
     const handleLogout = () => {
         try {
@@ -27,13 +33,35 @@ const Navbar = () => {
         navigate("/login", { replace: true, state: { from: location } });
     };
 
-    const avatarSrc = user?.picture
-        ? user.picture.startsWith("http")
-            ? user.picture
-            : joinUrl(API_BASE, user.picture)
-        : "/default-avatar.png";
+    // 🔥 Улучшенная логика для аватара
+    const getAvatarSrc = () => {
+        // Если была ошибка загрузки, используем placeholder
+        if (imageError) return DEFAULT_AVATAR;
+        
+        // Если нет пользователя или картинки
+        if (!user?.picture || user.picture === "/uploads/default.png") {
+            return DEFAULT_AVATAR;
+        }
+        
+        // Если URL полный (http/https)
+        if (user.picture.startsWith("http")) {
+            return user.picture;
+        }
+        
+        // Если относительный путь
+        return joinUrl(API_BASE, user.picture);
+    };
 
+    const avatarSrc = getAvatarSrc();
     const isAdmin = isAuthenticated && user?.role === "admin";
+
+    // 🔥 Обработчик ошибки загрузки изображения
+    const handleImageError = (e) => {
+        console.warn("Avatar load failed:", avatarSrc);
+        setImageError(true);
+        // Предотвращаем повторные попытки загрузки
+        e.currentTarget.onerror = null;
+    };
 
     return (
         <nav
@@ -103,11 +131,11 @@ const Navbar = () => {
                                             height="36"
                                             className="rounded-circle me-2 border"
                                             style={{ objectFit: "cover", borderColor: "#6C63FF" }}
-                                            onError={(e) => (e.currentTarget.src = "/default-avatar.png")}
+                                            onError={handleImageError}
                                         />
                                         <span className="fw-semibold" style={{ color: "#e8ecf3" }}>
-                      {user?.username || user?.email || "User"}
-                    </span>
+                                            {user?.username || user?.email || "User"}
+                                        </span>
                                     </Link>
                                 </li>
                                 <li className="nav-item">
