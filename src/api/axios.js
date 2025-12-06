@@ -1,26 +1,26 @@
-import axios from 'axios';
+// src/api/axios.js
+import axios from "axios";
+import { API_BASE } from "../config";
 
 const api = axios.create({
-  baseURL: "http://localhost:8080",
-  withCredentials: true,
+    baseURL: API_BASE,      // "http://localhost:8080"
+    withCredentials: true,  // чтобы куки ходили
 });
 
-api.interceptors.request.use(async (config) => {
-  if (['post', 'put', 'patch', 'delete'].includes(config.method.toLowerCase())) {
-    try {
-      const { data } = await api.get("/api/csrf");
-      config.headers["X-CSRF-Token"] = data.csrfToken;
-    } catch (err) {
-      console.error("CSRF fetch failed", err);
+api.interceptors.request.use((config) => {
+    // JWT из localStorage
+    const token = localStorage.getItem("token");
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
     }
-  }
 
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+    // CSRF-токен (если используешь)
+    const csrf = localStorage.getItem("csrf_token");
+    if (csrf) {
+        config.headers["X-CSRF-Token"] = csrf;
+    }
 
-  return config;
+    return config;
 });
 
 export default api;

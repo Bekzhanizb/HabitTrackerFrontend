@@ -1,5 +1,16 @@
+// src/pages/Main.jsx
 import React, { useCallback, useEffect, useState } from "react";
-import { Button, Card, Container, Row, Col, Modal, Form, Alert, Spinner } from "react-bootstrap";
+import {
+    Button,
+    Card,
+    Container,
+    Row,
+    Col,
+    Modal,
+    Form,
+    Alert,
+    Spinner,
+} from "react-bootstrap";
 import api from "../api/axios";
 import TimerCircle from "../components/TimerCircle";
 
@@ -37,13 +48,12 @@ const Main = () => {
         setError("");
         try {
             console.log("🚀 Fetching habits for user:", userId);
-            
-            // 🔥 FIX: НЕ передаем user_id в параметрах!
-            // Backend автоматически определит пользователя из JWT токена
+
+            // ✅ БЭК: GET /api/habits
             const res = await api.get("/api/habits");
-            
+
             console.log("✅ Habits response:", res.data);
-            
+
             const list = Array.isArray(res.data) ? res.data : [];
             setHabits(list);
             setSelected(list[0] || null);
@@ -51,7 +61,7 @@ const Main = () => {
             console.error("❌ Ошибка при загрузке привычек:", err);
             console.error("Response data:", err.response?.data);
             console.error("Response status:", err.response?.status);
-            
+
             setError(
                 err.response?.data?.error ||
                 err.response?.data?.details ||
@@ -78,22 +88,22 @@ const Main = () => {
         setSaving(true);
         try {
             console.log("📝 Creating habit:", formData);
-            
-            // 🔥 FIX: Правильный endpoint и передача user_id в body
-            await api.post("/api/habits", { 
-                ...formData, 
-                user_id: userId 
+
+            // ✅ БЭК: POST /api/habits
+            await api.post("/api/habits", {
+                ...formData,
+                user_id: userId,
             });
-            
+
             console.log("✅ Habit created successfully");
-            
+
             setShowModal(false);
             setFormData({ title: "", description: "", frequency: "daily" });
             await fetchHabits();
         } catch (err) {
             console.error("❌ Ошибка при сохранении привычки:", err);
             console.error("Response:", err.response?.data);
-            
+
             setError(
                 err.response?.data?.error ||
                 err.response?.data?.details ||
@@ -117,16 +127,16 @@ const Main = () => {
 
         try {
             console.log("🗑️ Deleting habit:", habitId);
-            
+
+            // ✅ БЭК: DELETE /api/habits/:id
             await api.delete(`/api/habits/${habitId}`);
-            
+
             console.log("✅ Habit deleted");
-            
-            // Если удаляемая привычка была выбрана, сбрасываем выбор
+
             if (selected?.id === habitId) {
                 setSelected(null);
             }
-            
+
             await fetchHabits();
         } catch (err) {
             console.error("❌ Ошибка при удалении:", err);
@@ -141,13 +151,14 @@ const Main = () => {
     const handleToggleActive = async (habitId, currentStatus) => {
         try {
             console.log("🔄 Toggling habit status:", habitId);
-            
+
+            // ✅ БЭК: PUT /api/habits/:id
             await api.put(`/api/habits/${habitId}`, {
-                is_active: !currentStatus
+                is_active: !currentStatus,
             });
-            
+
             console.log("✅ Status toggled");
-            
+
             await fetchHabits();
         } catch (err) {
             console.error("❌ Ошибка при изменении статуса:", err);
@@ -158,14 +169,15 @@ const Main = () => {
     const handleLog = async (habitId, isCompleted = true) => {
         try {
             console.log("📊 Logging habit:", habitId, "completed:", isCompleted);
-            
+
+            // ✅ БЭК: POST /api/habits/log
             await api.post("/api/habits/log", {
                 habit_id: habitId,
-                is_completed: isCompleted
+                is_completed: isCompleted,
             });
-            
+
             console.log("✅ Habit logged");
-            
+
             await fetchHabits();
         } catch (err) {
             console.error("❌ Ошибка при отметке привычки:", err);
@@ -181,11 +193,15 @@ const Main = () => {
                         <span className="badge badge-soft mb-2">DreamyFocus · Habits</span>
                         <h2 className="mb-2">Собери свои привычки в одном месте</h2>
                         <p className="footer-muted mb-0">
-                            Выбирай привычку, запускай фокус-таймер и возвращайся к ней каждый день.
+                            Выбирай привычку, запускай фокус-таймер и возвращайся к ней
+                            каждый день.
                         </p>
                     </div>
                 </Col>
-                <Col lg={5} className="d-flex justify-content-lg-end align-items-center mt-3 mt-lg-0">
+                <Col
+                    lg={5}
+                    className="d-flex justify-content-lg-end align-items-center mt-3 mt-lg-0"
+                >
                     <Button
                         variant="primary"
                         className="shadow-soft"
@@ -208,7 +224,12 @@ const Main = () => {
             )}
 
             {error && (
-                <Alert variant="danger" className="mb-3" dismissible onClose={() => setError("")}>
+                <Alert
+                    variant="danger"
+                    className="mb-3"
+                    dismissible
+                    onClose={() => setError("")}
+                >
                     {error}
                 </Alert>
             )}
@@ -233,7 +254,7 @@ const Main = () => {
                             {habits.map((habit) => {
                                 const isActive = selected?.id === habit.id;
                                 const isHabitActive = habit.is_active !== false;
-                                
+
                                 return (
                                     <Col md={6} key={habit.id} className="mb-3">
                                         <Card
@@ -250,8 +271,8 @@ const Main = () => {
                                                             {habit.title}
                                                             {!isHabitActive && (
                                                                 <span className="badge bg-secondary ms-2">
-                                                                    Неактивна
-                                                                </span>
+                                  Неактивна
+                                </span>
                                                             )}
                                                         </div>
                                                         {habit.description && (
@@ -261,18 +282,20 @@ const Main = () => {
                                                         )}
                                                     </div>
                                                     <span className="badge badge-soft">
-                                                        {habit.frequency === "daily"
-                                                            ? "Ежедневно"
-                                                            : habit.frequency === "weekly"
-                                                            ? "Еженедельно"
-                                                            : habit.frequency === "monthly"
-                                                            ? "Ежемесячно"
-                                                            : habit.frequency}
-                                                    </span>
+                            {habit.frequency === "daily"
+                                ? "Ежедневно"
+                                : habit.frequency === "weekly"
+                                    ? "Еженедельно"
+                                    : habit.frequency === "monthly"
+                                        ? "Ежемесячно"
+                                        : habit.frequency}
+                          </span>
                                                 </div>
-                                                
-                                                {/* Действия с привычкой */}
-                                                <div className="mt-3 d-flex gap-2" onClick={(e) => e.stopPropagation()}>
+
+                                                <div
+                                                    className="mt-3 d-flex gap-2"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
                                                     <Button
                                                         size="sm"
                                                         variant="outline-success"
@@ -281,15 +304,17 @@ const Main = () => {
                                                     >
                                                         ✓ Выполнено
                                                     </Button>
-                                                    
+
                                                     <Button
                                                         size="sm"
                                                         variant="outline-secondary"
-                                                        onClick={() => handleToggleActive(habit.id, isHabitActive)}
+                                                        onClick={() =>
+                                                            handleToggleActive(habit.id, isHabitActive)
+                                                        }
                                                     >
                                                         {isHabitActive ? "⏸ Пауза" : "▶ Активировать"}
                                                     </Button>
-                                                    
+
                                                     <Button
                                                         size="sm"
                                                         variant="outline-danger"
@@ -299,7 +324,6 @@ const Main = () => {
                                                     </Button>
                                                 </div>
 
-                                                {/* Статистика */}
                                                 {habit.logs && habit.logs.length > 0 && (
                                                     <div className="mt-2 small text-muted">
                                                         📊 Записей: {habit.logs.length}
@@ -319,7 +343,8 @@ const Main = () => {
                         {selected ? (
                             <>
                                 <h5 className="mb-3 text-center">
-                                    Фокус по привычке: <span className="habit-title">{selected.title}</span>
+                                    Фокус по привычке:{" "}
+                                    <span className="habit-title">{selected.title}</span>
                                 </h5>
                                 <TimerCircle
                                     durationSeconds={25 * 60}
@@ -356,7 +381,15 @@ const Main = () => {
                     <Modal.Title>Новая привычка</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    {error && <Alert variant="danger" dismissible onClose={() => setError("")}>{error}</Alert>}
+                    {error && (
+                        <Alert
+                            variant="danger"
+                            dismissible
+                            onClose={() => setError("")}
+                        >
+                            {error}
+                        </Alert>
+                    )}
                     <Form onSubmit={handleSubmit}>
                         <Form.Group className="mb-3">
                             <Form.Label>Название</Form.Label>
@@ -407,10 +440,10 @@ const Main = () => {
                             </Form.Select>
                         </Form.Group>
 
-                        <Button 
-                            type="submit" 
-                            variant="primary" 
-                            className="w-100" 
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            className="w-100"
                             disabled={saving || !userId || !formData.title.trim()}
                         >
                             {saving ? (

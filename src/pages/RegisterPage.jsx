@@ -1,3 +1,4 @@
+// src/pages/RegisterPage.jsx
 import React, { useEffect, useState } from "react";
 import { Form, Button, Container, Row, Col, Alert, Spinner } from "react-bootstrap";
 import { useNavigate, Link } from "react-router-dom";
@@ -5,7 +6,7 @@ import { useDispatch } from "react-redux";
 import { login } from "../slices/userSlice";
 import api from "../api/axios";
 
-const MAX_AVATAR_BYTES = 3 * 1024 * 1024; 
+const MAX_AVATAR_BYTES = 3 * 1024 * 1024;
 const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"];
 
 export default function RegisterPage() {
@@ -75,80 +76,93 @@ export default function RegisterPage() {
     };
 
     const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
+        e.preventDefault();
+        setError("");
 
-    if (!formData.username.trim()) {
-        setError("Введите имя пользователя");
-        return;
-    }
-    if ((formData.password || "").length < 3) {
-        setError("Пароль должен быть не менее 3 символов");
-        return;
-    }
-    if (!formData.city_id) {
-        setError("Выберите город");
-        return;
-    }
-
-    setSending(true);
-    try {
-        const data = new FormData();
-        data.append("username", formData.username.trim());
-        data.append("password", formData.password);
-        data.append("city_id", String(Number(formData.city_id)));
-
-        // ✅ Возвращаем загрузку аватараф
-        if (formData.avatar) {
-            data.append("avatar", formData.avatar);
+        if (!formData.username.trim()) {
+            setError("Введите имя пользователя");
+            return;
+        }
+        if ((formData.password || "").length < 3) {
+            setError("Пароль должен быть не менее 3 символов");
+            return;
+        }
+        if (!formData.city_id) {
+            setError("Выберите город");
+            return;
         }
 
-const res = await api.post("/api/register", data, {
-    headers: { "Content-Type": "multipart/form-data" },
-});
- 
-        const token =
-            res.data?.token ||
-            res.data?.access_token ||
-            res.data?.jwt ||
-            res.data?.data?.token;
-
-        const rawUser =
-            res.data?.user ||
-            res.data?.data?.user || {
-                id: res.data?.id ?? res.data?.user_id,
-                username: res.data?.username ?? formData.username,
-                role: res.data?.role ?? "user",
-                picture: res.data?.picture ?? res.data?.avatar ?? null,
-                city_id: Number(formData.city_id),
-            };
-
-        const user = { ...rawUser, picture: rawUser.picture ?? rawUser.avatar ?? null };
-
-        if (!token || !user) {
-            throw new Error("Некорректный ответ сервера: отсутствует токен или пользователь");
-        }
-
-        dispatch(login({ user, token }));
+        setSending(true);
         try {
-            localStorage.setItem("token", token);
-            localStorage.setItem("user", JSON.stringify(user));
-        } catch {}
+            const data = new FormData();
+            data.append("username", formData.username.trim());
+            data.append("password", formData.password);
+            data.append("city_id", String(Number(formData.city_id)));
 
-        navigate("/profile", { replace: true });
-    } catch (err) {
-        console.error("Ошибка при регистрации:", err);
-        const status = err.response?.status;
-        const payload = err.response?.data;
-        setError(
-            (payload?.error || payload?.message || err.message || "Ошибка при регистрации") +
-            (status ? ` (HTTP ${status})` : "")
-        );
-    } finally {
-        setSending(false);
-    }
-};
+            if (formData.avatar) {
+                data.append("avatar", formData.avatar);
+            }
 
+            // ✅ БЭК: POST /api/register (public)
+            const res = await api.post("/api/register", data, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+
+            const token =
+                res.data?.token ||
+                res.data?.access_token ||
+                res.data?.jwt ||
+                res.data?.data?.token;
+
+            const rawUser =
+                res.data?.user ||
+                res.data?.data?.user || {
+                    id: res.data?.id ?? res.data?.user_id,
+                    username: res.data?.username ?? formData.username,
+                    role: res.data?.role ?? "user",
+                    picture: res.data?.picture ?? res.data?.avatar ?? null,
+                    city_id: Number(formData.city_id),
+                };
+
+            const user = { ...rawUser, picture: rawUser.picture ?? rawUser.avatar ?? null };
+
+            if (!token || !user) {
+                throw new Error("Некорректный ответ сервера: отсутствует токен или пользователь");
+            }
+
+            dispatch(login({ user, token }));
+            try {
+                localStorage.setItem("token", token);
+                localStorage.setItem("user", JSON.stringify(user));
+            } catch {}
+
+            // 🔴 ДОБАВИЛИ: сразу после регистрации получить CSRF-токен
+            try {
+                const csrfRes = await api.get("/api/csrf");
+                const csrfToken =
+                    csrfRes.data?.csrf_token ||
+                    csrfRes.data?.token ||
+                    csrfRes.headers["x-csrf-token"];
+                if (csrfToken) {
+                    localStorage.setItem("csrf_token", csrfToken);
+                }
+            } catch (csrfErr) {
+                console.error("CSRF init failed after register:", csrfErr);
+            }
+
+            navigate("/profile", { replace: true });
+        } catch (err) {
+            console.error("Ошибка при регистрации:", err);
+            const status = err.response?.status;
+            const payload = err.response?.data;
+            setError(
+                (payload?.error || payload?.message || err.message || "Ошибка при регистрации") +
+                (status ? ` (HTTP ${status})` : "")
+            );
+        } finally {
+            setSending(false);
+        }
+    };
 
     return (
         <Container className="mt-5">

@@ -1,3 +1,4 @@
+// src/pages/ProfilePage.jsx
 import React, { useEffect, useState } from "react";
 import {
     Container,
@@ -22,8 +23,8 @@ const joinUrl = (base, path) => {
     return `${b}${p}`;
 };
 
-// 🔥 Placeholder avatar
-const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect fill='%234a5568' width='150' height='150'/%3E%3Ctext x='75' y='85' font-family='Arial' font-size='60' fill='%23e2e8f0' text-anchor='middle'%3E%3F%3C/text%3E%3C/svg%3E";
+const DEFAULT_AVATAR =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect fill='%234a5568' width='150' height='150'/%3E%3Ctext x='75' y='85' font-family='Arial' font-size='60' fill='%23e2e8f0' text-anchor='middle'%3E%3F%3C/text%3E%3C/svg%3E";
 
 const ProfilePage = () => {
     const { user } = useSelector((state) => state.user);
@@ -43,7 +44,7 @@ const ProfilePage = () => {
         setUsername(user?.username || "");
         setCityId(user?.city_id ?? "");
         setPreview(user?.picture || "");
-        setImageError(false); // Сброс ошибки при смене пользователя
+        setImageError(false);
     }, [user]);
 
     useEffect(() => {
@@ -51,6 +52,7 @@ const ProfilePage = () => {
         (async () => {
             setListLoading(true);
             try {
+                // ✅ БЭК: GET /api/cities
                 const res = await api.get("/api/cities", { signal: controller.signal });
                 setCities(Array.isArray(res.data) ? res.data : []);
             } catch (err) {
@@ -78,13 +80,11 @@ const ProfilePage = () => {
     const handlePictureChange = (e) => {
         const file = e.target.files?.[0] || null;
         setPicture(file);
-        
-        // Очищаем предыдущий blob URL
+
         if (preview && preview.startsWith("blob:")) {
             URL.revokeObjectURL(preview);
         }
-        
-        // Создаем новый preview
+
         if (file) {
             setPreview(URL.createObjectURL(file));
             setImageError(false);
@@ -106,7 +106,7 @@ const ProfilePage = () => {
             }
             if (picture) formData.append("picture", picture);
 
-            // 🔥 FIX: Используйте правильный endpoint
+            // ✅ БЭК: PUT /api/profile
             const res = await api.put("/api/profile", formData, {
                 headers: {
                     "Content-Type": "multipart/form-data",
@@ -150,27 +150,21 @@ const ProfilePage = () => {
         );
     }
 
-    // 🔥 Улучшенная логика для avatar
     const getAvatarSrc = () => {
-        // Если была ошибка загрузки
         if (imageError) return DEFAULT_AVATAR;
-        
-        // Если есть preview (новое изображение)
+
         if (preview && preview.startsWith("blob:")) {
             return preview;
         }
-        
-        // Если нет картинки или это дефолтная
+
         if (!preview || preview === "/uploads/default.png") {
             return DEFAULT_AVATAR;
         }
-        
-        // Если URL полный
+
         if (preview.startsWith("http")) {
             return preview;
         }
-        
-        // Если относительный путь
+
         return joinUrl(API_BASE, preview.startsWith("/") ? preview : `/${preview}`);
     };
 
@@ -179,7 +173,7 @@ const ProfilePage = () => {
     const handleImageError = (e) => {
         console.warn("Avatar load failed:", avatarSrc);
         setImageError(true);
-        e.currentTarget.onerror = null; // Предотвращаем повторные попытки
+        e.currentTarget.onerror = null;
     };
 
     return (
@@ -203,7 +197,12 @@ const ProfilePage = () => {
                         </div>
 
                         {error && (
-                            <Alert variant="danger" className="mb-3" dismissible onClose={() => setError("")}>
+                            <Alert
+                                variant="danger"
+                                className="mb-3"
+                                dismissible
+                                onClose={() => setError("")}
+                            >
                                 {error}
                             </Alert>
                         )}

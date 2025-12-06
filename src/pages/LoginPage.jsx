@@ -1,124 +1,153 @@
+// src/pages/LoginPage.jsx
 import React, { useState } from "react";
-import { Form, Button, Container, Row, Col, Alert, Spinner } from "react-bootstrap";
 import { useDispatch } from "react-redux";
-import { login } from "../slices/userSlice";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { Card, Button, Form, Alert, Spinner } from "react-bootstrap";
 import api from "../api/axios";
+import { login } from "../slices/userSlice";
 
 const LoginPage = () => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
 
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const location = useLocation();
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
 
-    try {
-      // Интерцептор сам получит свежий CSRF-токен перед запросом
-      const res = await api.post("/api/login", { username, password });
+        try {
+            // ✅ БЭК: POST /api/login
+            const res = await api.post("/api/login", {
+                username,
+                password,
+            });
 
-      const token = res.data?.token || res.data?.access_token || res.data?.jwt;
-      const rawUser = res.data?.user || res.data?.data?.user || {
-        id: res.data?.id ?? res.data?.user_id,
-        username: res.data?.username ?? username,
-        role: res.data?.role ?? "user",
-        city_id: res.data?.city_id,
-        picture: res.data?.picture,
-      };
+            const token =
+                res.data?.token ||
+                res.data?.access_token ||
+                res.data?.jwt;
 
-      if (!token) throw new Error("Токен не пришёл с сервера");
+            if (!token) {
+                throw new Error("Token not found in response");
+            }
 
-      dispatch(login({ user: rawUser, token }));
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(rawUser));
+            const user = res.data.user || {};
 
-      const redirectTo = location.state?.from?.pathname || "/profile";
-      navigate(redirectTo, { replace: true });
-    } catch (err) {
-      const msg =
-        err.response?.data?.error ||
-        err.response?.data?.message ||
-        err.message ||
-        "Неверное имя пользователя или пароль";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+            try {
+                localStorage.setItem("token", token);
+                localStorage.setItem("user", JSON.stringify(user));
+            } catch {}
 
-  // ... остальной JSX без изменений
-  return (
-    // твой красивый JSX остаётся тем же
-    <Container className="container-page">
-      <Row className="justify-content-center">
-        <Col md={6} lg={5}>
-          <div className="card rounded-2xl p-4 shadow-soft hero">
-            <h3 className="text-center mb-3">Вход в DreamyFocus</h3>
-            <p className="text-center footer-muted mb-4">
-              Вернись к своим привычкам и заметкам.
-            </p>
+            dispatch(
+                login({
+                    user,
+                    token,
+                })
+            );
 
-            {error && <Alert variant="danger" className="text-center">{error}</Alert>}
+            // 🔴 ДОБАВИЛИ: сразу после логина получить CSRF-токен
+            try {
+                const csrfRes = await api.get("/api/csrf");
+                const csrfToken =
+                    csrfRes.data?.csrf_token ||
+                    csrfRes.data?.token ||
+                    csrfRes.headers["x-csrf-token"];
+                if (csrfToken) {
+                    localStorage.setItem("csrf_token", csrfToken);
+                }
+            } catch (csrfErr) {
+                console.error("CSRF init failed after login:", csrfErr);
+            }
 
-            <Form onSubmit={handleLogin}>
-              <Form.Group className="mb-3">
-                <Form.Label>Имя пользователя</Form.Label>
-                <Form.Control
-                  className="input-dark"
-                  type="text"
-                  placeholder="Введите имя пользователя"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                />
-              </Form.Group>
+            navigate("/", { replace: true });
+        } catch (err) {
+            console.error("Login error:", err);
+            setError(
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                "Неверный логин или пароль"
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
 
-              <Form.Group className="mb-4">
-                <Form.Label>Пароль</Form.Label>
-                <div className="d-flex gap-2">
-                  <Form.Control
-                    className="input-dark"
-                    type={showPass ? "text" : "password"}
-                    placeholder="Введите пароль"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <Button
-                    variant="outline-secondary"
-                    onClick={() => setShowPass(s => !s)}
-                  >
-                    {showPass ? "Скрыть" : "Показать"}
-                  </Button>
-                </div>
-              </Form.Group>
+    return (
+        <div className="d-flex justify-content-center mt-5">
+            <Card
+                className="rounded-2xl shadow-soft"
+                style={{ maxWidth: 420, width: "100%" }}
+            >
+                <Card.Body>
+                    <h3 className="mb-3 text-center">Вход</h3>
+                    {error && (
+                        <Alert
+                            variant="danger"
+                            dismissible
+                            onClose={() => setError("")}
+                            className="mb-3"
+                        >
+                            {error}
+                        </Alert>
+                    )}
 
-              <Button type="submit" variant="primary" className="w-100 mb-3" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Spinner size="sm" animation="border" className="me-2" />
-                    Входим...
-                  </>
-                ) : "Войти"}
-              </Button>
+                    <Form onSubmit={handleSubmit}>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Username</Form.Label>
+                            <Form.Control
+                                className="input-dark"
+                                type="text"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                required
+                                placeholder="Введите логин"
+                            />
+                        </Form.Group>
 
-              <div className="text-center footer-muted">
-                Нет аккаунта? <Link to="/register">Зарегистрируйтесь</Link>
-              </div>
-            </Form>
-          </div>
-        </Col>
-      </Row>
-    </Container>
-  );
+                        <Form.Group className="mb-4">
+                            <Form.Label>Password</Form.Label>
+                            <Form.Control
+                                className="input-dark"
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                placeholder="Введите пароль"
+                            />
+                        </Form.Group>
+
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            className="w-100"
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <>
+                                    <Spinner
+                                        as="span"
+                                        animation="border"
+                                        size="sm"
+                                        role="status"
+                                        aria-hidden="true"
+                                        className="me-2"
+                                    />
+                                    Вхожу...
+                                </>
+                            ) : (
+                                "Войти"
+                            )}
+                        </Button>
+                    </Form>
+                </Card.Body>
+            </Card>
+        </div>
+    );
 };
 
 export default LoginPage;

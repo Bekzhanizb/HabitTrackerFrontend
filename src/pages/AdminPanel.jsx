@@ -1,3 +1,4 @@
+// src/pages/AdminPanel.jsx
 import React, { useEffect, useState } from "react";
 import {
     Alert,
@@ -18,9 +19,7 @@ import api from "../api/axios";
 export default function AdminPanel() {
     const { user: currentUser } = useSelector((state) => state.user);
 
-    // --- состояния ---
     const [activeTab, setActiveTab] = useState("habits");
-
     const [users, setUsers] = useState([]);
     const [usersLoading, setUsersLoading] = useState(false);
 
@@ -35,19 +34,6 @@ export default function AdminPanel() {
 
     const [error, setError] = useState("");
 
-    // --- если не админ, не пускаем ---
-    if (!currentUser || currentUser.role !== "admin") {
-        return (
-            <Container className="container-page">
-                <Alert variant="danger">
-                    Доступ к админ-панели разрешён только пользователям с ролью{" "}
-                    <b>admin</b>.
-                </Alert>
-            </Container>
-        );
-    }
-
-    // ===== ЗАГРУЗКА ДАННЫХ =====
     useEffect(() => {
         loadUsers();
         loadHabits();
@@ -56,17 +42,24 @@ export default function AdminPanel() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    if (!currentUser || currentUser.role !== "admin") {
+        return (
+            <Container className="container-page">
+                <Alert variant="danger">Доступ разрешён только admin</Alert>
+            </Container>
+        );
+    }
+
     const loadUsers = async () => {
         setUsersLoading(true);
         setError("");
         try {
-            // 👉 Пытаемся получить всех пользователей
-            const res = await api.get("/admin/users");
+            // ✅ БЭК: GET /api/admin/users
+            const res = await api.get("/api/admin/users");
             const list = Array.isArray(res.data) ? res.data : [];
             setUsers(list);
         } catch (err) {
-            console.warn("admin/users endpoint not ready, using fallback");
-            // fallback – хотя бы текущий юзер, чтобы UI не ломался
+            console.warn("admin/users endpoint not ready, using fallback", err);
             setUsers([
                 {
                     id: currentUser.id,
@@ -86,14 +79,17 @@ export default function AdminPanel() {
         setHabitsLoading(true);
         setError("");
         try {
-            // 👉 основная попытка – специально /admin/habits (в будущем)
             let res;
             try {
-                res = await api.get("/admin/habits");
+                // ✅ БЭК: GET /api/admin/habits
+                res = await api.get("/api/admin/habits");
             } catch (err) {
-                console.warn("admin/habits endpoint not ready, fallback to /habits");
-                // fallback – текущие привычки (только этого пользователя)
-                res = await api.get("/habits");
+                console.warn(
+                    "admin/habits endpoint not ready, fallback to /api/habits",
+                    err
+                );
+                // fallback – привычки текущего пользователя
+                res = await api.get("/api/habits");
             }
             const list = Array.isArray(res.data) ? res.data : [];
             setHabits(list);
@@ -113,23 +109,17 @@ export default function AdminPanel() {
         setDiaryLoading(true);
         setError("");
         try {
-            // 👉 когда сделаешь backend, можно будет раскомментировать
-            // const res = await api.get("/admin/diary");
-            // setDiary(Array.isArray(res.data) ? res.data : []);
-
-            // Пока backend не готов – пример данных-заглушек:
-            setDiary([
-                {
-                    id: 1,
-                    date: "2025-12-01",
-                    title: "Утренний фокус",
-                    content: "Делал медитацию и планирование дня.",
-                    author: { id: 1, username: "demo_user" },
-                },
-            ]);
+            // ✅ БЭК: GET /api/admin/diaries
+            const res = await api.get("/api/admin/diaries");
+            const list = Array.isArray(res.data) ? res.data : [];
+            setDiary(list);
         } catch (err) {
-            console.error("Ошибка при загрузке дневника:", err);
-            setError("Не удалось загрузить записи дневника");
+            console.error("Ошибка при загрузке дневника (admin):", err);
+            setError(
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                "Не удалось загрузить записи дневника"
+            );
         } finally {
             setDiaryLoading(false);
         }
@@ -139,30 +129,30 @@ export default function AdminPanel() {
         setLogsLoading(true);
         setError("");
         try {
-            // 👉 можно будет сделать /admin/logs
-            // const res = await api.get("/admin/logs");
-            // setLogs(Array.isArray(res.data) ? res.data : []);
+            // ✅ БЭК: GET /api/admin/habit-logs
+            const res = await api.get("/api/admin/habit-logs");
+            const raw = Array.isArray(res.data) ? res.data : [];
 
-            // Пока как раньше – демо-логи:
-            setLogs([
-                {
-                    id: 1,
-                    at: "2025-11-12 10:15",
-                    actor: "admin",
-                    action: "CREATE_HABIT",
-                    details: '{"title":"Morning run"}',
-                },
-                {
-                    id: 2,
-                    at: "2025-11-12 10:17",
-                    actor: "admin",
-                    action: "UPDATE_PROFILE",
-                    details: '{"username":"newname"}',
-                },
-            ]);
+            // Маппим в удобный формат
+            const mapped = raw.map((log) => ({
+                id: log.id,
+                at: log.created_at || log.timestamp || "",
+                actor:
+                    log.user?.username ||
+                    log.actor ||
+                    (log.user_id ? `user#${log.user_id}` : "—"),
+                action: log.action || log.change_type || "UPDATE",
+                details: JSON.stringify(log, null, 2),
+            }));
+
+            setLogs(mapped);
         } catch (err) {
             console.error("Ошибка при загрузке логов:", err);
-            setError("Не удалось загрузить логи");
+            setError(
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                "Не удалось загрузить логи"
+            );
         } finally {
             setLogsLoading(false);
         }
@@ -170,13 +160,13 @@ export default function AdminPanel() {
 
     // ===== ДЕЙСТВИЯ АДМИНА =====
 
-    // 2–3. Админ НЕ создаёт и НЕ редактирует привычки – ТОЛЬКО delete
     const handleDeleteHabit = async (habit) => {
         if (!habit) return;
         if (!window.confirm(`Удалить привычку «${habit.title}»?`)) return;
 
         try {
-            await api.delete(`/habit/${habit.id}`);
+            // ✅ БЭК: DELETE /api/admin/habits/:id
+            await api.delete(`/api/admin/habits/${habit.id}`);
             await loadHabits();
         } catch (err) {
             console.error("Ошибка при удалении привычки админом:", err);
@@ -188,21 +178,21 @@ export default function AdminPanel() {
         }
     };
 
-    // 4. Diary – только просмотр и удаление
     const handleDeleteDiary = async (entry) => {
         if (!entry) return;
         if (!window.confirm(`Удалить запись дневника «${entry.title}»?`)) return;
 
         try {
-            // когда сделаешь backend:
-            // await api.delete(`/admin/diary/${entry.id}`);
-            // await loadDiary();
-
-            // пока просто убираем из стейта, чтобы UI работал
-            setDiary((prev) => prev.filter((d) => d.id !== entry.id));
+            // ✅ БЭК: DELETE /api/admin/diaries/:id
+            await api.delete(`/api/admin/diaries/${entry.id}`);
+            await loadDiary();
         } catch (err) {
             console.error("Ошибка при удалении записи дневника:", err);
-            alert("Не удалось удалить запись дневника");
+            alert(
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                "Не удалось удалить запись дневника"
+            );
         }
     };
 
@@ -374,7 +364,7 @@ export default function AdminPanel() {
                         {diary.map((d) => (
                             <tr key={d.id}>
                                 <td>{d.id}</td>
-                                <td>{d.date}</td>
+                                <td>{d.date || d.created_at?.slice(0, 10) || "—"}</td>
                                 <td>{d.title}</td>
                                 <td>{d.author?.username || d.author_name || "—"}</td>
                                 <td className="footer-muted">
@@ -435,7 +425,12 @@ export default function AdminPanel() {
                                 <td>{l.actor}</td>
                                 <td>{l.action}</td>
                                 <td>
-                                    <code style={{ whiteSpace: "pre-wrap", fontSize: "0.8rem" }}>
+                                    <code
+                                        style={{
+                                            whiteSpace: "pre-wrap",
+                                            fontSize: "0.8rem",
+                                        }}
+                                    >
                                         {l.details}
                                     </code>
                                 </td>
