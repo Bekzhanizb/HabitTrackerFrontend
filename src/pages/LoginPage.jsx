@@ -4,7 +4,7 @@ import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { Card, Button, Form, Alert, Spinner } from "react-bootstrap";
 import api from "../api/axios";
-import { login } from "../slices/userSlice";
+import { login } from "../slices/userSlice"; // 👈 ВАЖНО: login, а не loginSuccess
 
 const LoginPage = () => {
     const [username, setUsername] = useState("");
@@ -21,8 +21,8 @@ const LoginPage = () => {
         setLoading(true);
 
         try {
-            // ✅ БЭК: POST /api/login
-            const res = await api.post("/api/login", {
+            // бекенд слушает POST /login (без /api)
+            const res = await api.post("/login", {
                 username,
                 password,
             });
@@ -38,31 +38,19 @@ const LoginPage = () => {
 
             const user = res.data.user || {};
 
+            // сохраняем в localStorage
             try {
                 localStorage.setItem("token", token);
                 localStorage.setItem("user", JSON.stringify(user));
             } catch {}
 
+            // 👇 вызываем экшен login из userSlice
             dispatch(
                 login({
                     user,
                     token,
                 })
             );
-
-            // 🔴 ДОБАВИЛИ: сразу после логина получить CSRF-токен
-            try {
-                const csrfRes = await api.get("/api/csrf");
-                const csrfToken =
-                    csrfRes.data?.csrf_token ||
-                    csrfRes.data?.token ||
-                    csrfRes.headers["x-csrf-token"];
-                if (csrfToken) {
-                    localStorage.setItem("csrf_token", csrfToken);
-                }
-            } catch (csrfErr) {
-                console.error("CSRF init failed after login:", csrfErr);
-            }
 
             navigate("/", { replace: true });
         } catch (err) {

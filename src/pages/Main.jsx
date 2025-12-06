@@ -49,8 +49,8 @@ const Main = () => {
         try {
             console.log("🚀 Fetching habits for user:", userId);
 
-            // ✅ БЭК: GET /api/habits
-            const res = await api.get("/api/habits");
+            // ✅ БЭК: GET /habits (без /api)
+            const res = await api.get("/habits");
 
             console.log("✅ Habits response:", res.data);
 
@@ -89,8 +89,8 @@ const Main = () => {
         try {
             console.log("📝 Creating habit:", formData);
 
-            // ✅ БЭК: POST /api/habits
-            await api.post("/api/habits", {
+            // ✅ БЭК: POST /habit
+            await api.post("/habit", {
                 ...formData,
                 user_id: userId,
             });
@@ -128,8 +128,8 @@ const Main = () => {
         try {
             console.log("🗑️ Deleting habit:", habitId);
 
-            // ✅ БЭК: DELETE /api/habits/:id
-            await api.delete(`/api/habits/${habitId}`);
+            // ✅ БЭК: DELETE /habit/:id
+            await api.delete(`/habit/${habitId}`);
 
             console.log("✅ Habit deleted");
 
@@ -152,8 +152,8 @@ const Main = () => {
         try {
             console.log("🔄 Toggling habit status:", habitId);
 
-            // ✅ БЭК: PUT /api/habits/:id
-            await api.put(`/api/habits/${habitId}`, {
+            // ✅ БЭК: PUT /habit/:id
+            await api.put(`/habit/${habitId}`, {
                 is_active: !currentStatus,
             });
 
@@ -170,8 +170,8 @@ const Main = () => {
         try {
             console.log("📊 Logging habit:", habitId, "completed:", isCompleted);
 
-            // ✅ БЭК: POST /api/habits/log
-            await api.post("/api/habits/log", {
+            // ✅ БЭК: POST /habit/log
+            await api.post("/habit/log", {
                 habit_id: habitId,
                 is_completed: isCompleted,
             });

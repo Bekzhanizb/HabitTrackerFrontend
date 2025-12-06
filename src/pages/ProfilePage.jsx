@@ -23,6 +23,7 @@ const joinUrl = (base, path) => {
     return `${b}${p}`;
 };
 
+// 🔥 Placeholder avatar
 const DEFAULT_AVATAR =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect fill='%234a5568' width='150' height='150'/%3E%3Ctext x='75' y='85' font-family='Arial' font-size='60' fill='%23e2e8f0' text-anchor='middle'%3E%3F%3C/text%3E%3C/svg%3E";
 
@@ -52,7 +53,6 @@ const ProfilePage = () => {
         (async () => {
             setListLoading(true);
             try {
-                // ✅ БЭК: GET /api/cities
                 const res = await api.get("/api/cities", { signal: controller.signal });
                 setCities(Array.isArray(res.data) ? res.data : []);
             } catch (err) {
@@ -106,8 +106,8 @@ const ProfilePage = () => {
             }
             if (picture) formData.append("picture", picture);
 
-            // ✅ БЭК: PUT /api/profile
-            const res = await api.put("/api/profile", formData, {
+            // ✅ ПРАВИЛЬНЫЙ endpoint: /auth/profile
+            const res = await api.put("/auth/profile", formData, {
                 headers: {
                     "Content-Type": "multipart/form-data",
                 },

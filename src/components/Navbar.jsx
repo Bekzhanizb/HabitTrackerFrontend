@@ -1,4 +1,3 @@
-// src/components/Navbar.jsx
 import React from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -23,7 +22,6 @@ const Navbar = () => {
         try {
             localStorage.removeItem("token");
             localStorage.removeItem("user");
-            localStorage.removeItem("csrf_token"); // 🔴 ДОБАВИЛИ
         } catch {}
         dispatch(logout());
         navigate("/login", { replace: true, state: { from: location } });
@@ -100,8 +98,8 @@ const Navbar = () => {
                                             className="fw-semibold"
                                             style={{ color: "#333" }}
                                         >
-                                            {user?.username || user?.email || "User"}
-                                        </span>
+                      {user?.username || user?.email || "User"}
+                    </span>
                                     </Link>
                                 </li>
                                 <li className="nav-item">
