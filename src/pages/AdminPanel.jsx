@@ -49,31 +49,44 @@ export default function AdminPanel() {
             </Container>
         );
     }
+const loadUsers = async () => {
+    setUsersLoading(true);
+    setError("");
 
-    const loadUsers = async () => {
-        setUsersLoading(true);
-        setError("");
-        try {
-            // ✅ БЭК: GET /api/admin/users
-            const res = await api.get("/api/admin/users");
-            const list = Array.isArray(res.data) ? res.data : [];
-            setUsers(list);
-        } catch (err) {
-            console.warn("admin/users endpoint not ready, using fallback", err);
-            setUsers([
-                {
-                    id: currentUser.id,
-                    username: currentUser.username || "admin",
-                    email: currentUser.email || "-",
-                    role: currentUser.role,
-                    city: currentUser.city || null,
-                    created_at: currentUser.created_at,
-                },
-            ]);
-        } finally {
-            setUsersLoading(false);
-        }
-    };
+    try {
+        const res = await api.get("/api/users");
+
+        const list = Array.isArray(res.data) ? res.data : [];
+
+        // 🔥 Нормализуем данные (City -> city)
+        const normalized = list.map((u) => ({
+            id: u.id,
+            username: u.username,
+            email: u.email,
+            role: u.role,
+            created_at: u.created_at,
+            city: u.City || u.city || null, // теперь точно будет
+        }));
+
+        setUsers(normalized);
+    } catch (err) {
+        console.warn("admin/users endpoint not ready, using fallback", err);
+
+        setUsers([
+            {
+                id: currentUser.id,
+                username: currentUser.username || "admin",
+                email: currentUser.email || "-",
+                role: currentUser.role,
+                city: currentUser.city || null,
+                created_at: currentUser.created_at,
+            },
+        ]);
+    } finally {
+        setUsersLoading(false);
+    }
+};
+
 
     const loadHabits = async () => {
         setHabitsLoading(true);
@@ -129,11 +142,9 @@ export default function AdminPanel() {
         setLogsLoading(true);
         setError("");
         try {
-            // ✅ БЭК: GET /api/admin/habit-logs
-            const res = await api.get("/api/admin/habit-logs");
+            const res = await api.get("/api/logs");
             const raw = Array.isArray(res.data) ? res.data : [];
 
-            // Маппим в удобный формат
             const mapped = raw.map((log) => ({
                 id: log.id,
                 at: log.created_at || log.timestamp || "",
@@ -216,7 +227,6 @@ export default function AdminPanel() {
                         <tr>
                             <th>#</th>
                             <th>Username</th>
-                            <th>Email</th>
                             <th>Город</th>
                             <th>Роль</th>
                             <th>Создан</th>
@@ -227,7 +237,6 @@ export default function AdminPanel() {
                             <tr key={u.id}>
                                 <td>{u.id}</td>
                                 <td>{u.username || "-"}</td>
-                                <td>{u.email || "-"}</td>
                                 <td>
                                     {u.city?.name ||
                                         u.city_name ||
@@ -259,7 +268,7 @@ export default function AdminPanel() {
                 <h5 className="mb-3">Все привычки</h5>
                 <p className="footer-muted mb-3">
                     Админ <b>не может создавать или редактировать</b> привычки. Только
-                    просмотр и удаление.
+                    просмотр и удаление.warning
                 </p>
                 {habitsLoading ? (
                     <div className="text-center py-4">
